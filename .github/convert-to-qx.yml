@@ -1,0 +1,34 @@
+name: Convert SiHai to QX
+
+on:
+  schedule:
+    - cron: '0 0 * * *'  # 每天0点运行
+  workflow_dispatch:  # 允许手动触发
+
+jobs:
+  convert:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v2
+
+      - name: Set up Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: '3.x'
+
+      - name: Install dependencies
+        run: |
+          pip install requests pyyaml
+
+      - name: Run conversion script
+        run: |
+          python convert_script.py  # 假设你的脚本命名为 convert_script.py
+
+      - name: Commit and push converted file
+        run: |
+          git config --global user.name "github-actions"
+          git config --global user.email "github-actions@github.com"
+          git add qx_config.txt
+          git commit -m "Update QX config"
+          git push
