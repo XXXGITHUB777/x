@@ -23,12 +23,17 @@ jobs:
 
       - name: Run conversion script
         run: |
-          python convert_script.py  # 假设你的脚本命名为 convert_script.py
+          python convert_script.py  # 运行你的 Python 脚本
+
+      - name: Check if file is generated
+        run: |
+          ls -la docs  # 确保文件存在
+          cat docs/qx_config.txt  # 查看文件内容
 
       - name: Commit and push converted file
         run: |
           git config --global user.name "github-actions"
           git config --global user.email "github-actions@github.com"
-          git add docs/qx_config.txt  # 确保文件路径是 docs/qx_config.txt
-          git commit -m "Update QX config"
+          git add docs/qx_config.txt  # 确保将文件添加到版本控制
+          git commit -m "Update QX config" || echo "No changes to commit"
           git push
