@@ -1,10 +1,9 @@
 /**
- * Instagram Unlock Long-Press for Quantumult X
- * 注入代码到网页，移除遮罩，允许原生 Safari 长按保存
+
  */
 [rewrite_local]
 # Instagram 网页版：强制开启长按保存 (解锁右键/长按限制)
-^https?:\/\/(www\.)?instagram\.com\/.* url script-response-body https://raw.githubusercontent.com/你的用户名/你的仓库/main/ig_unlock.js
+^https?:\/\/(www\.)?instagram\.com\/.* url script-response-body https://raw.githubusercontent.com/XXXGITHUB777/x/refs/heads/main/ig_unlock.js
 
 let body = $response.body;
 
