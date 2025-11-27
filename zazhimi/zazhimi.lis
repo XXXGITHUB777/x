@@ -1,8 +1,0 @@
-DOMAIN,googleads.g.doubleclick.net,REJECT
-DOMAIN,pagead2.googlesyndication.com,REJECT
-DOMAIN,fundingchoicesmessages.google.com,REJECT
-DOMAIN,securepubads.g.doubleclick.net,REJECT
-DOMAIN,adservice.google.com,REJECT
-DOMAIN,adservice.google.com.hk,REJECT
-DOMAIN,adservice.google.com.tw,REJECT
-DOMAIN,admob.googleusercontent.com,REJECT
