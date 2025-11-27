@@ -4,6 +4,9 @@
 [rewrite_local]
 # Instagram 网页版：强制开启长按保存 (解锁右键/长按限制)
 ^https?:\/\/(www\.)?instagram\.com\/.* url script-response-body https://raw.githubusercontent.com/XXXGITHUB777/x/refs/heads/main/ig_unlock.js
+[mitm]
+# 必须包含这两条，对应网页版的主域名
+hostname = www.instagram.com, instagram.com
 
 let body = $response.body;
 
