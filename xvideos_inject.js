@@ -4,7 +4,7 @@
 
 [rewrite_local]
 # 匹配 xvideos 所有页面进行注入
-^https?:\/\/.*\.xvideos\.com\/.* url script-response-body https://raw.githubusercontent.com/yours/path/xvideos_inject.js
+^https?:\/\/.*\.xvideos\.com\/.* url script-response-body https://raw.githubusercontent.com/XXXGITHUB777/x/refs/heads/main/xvideos_inject.js
 
 [mitm]
 hostname = *.xvideos.com
