@@ -1,10 +1,12 @@
+[rewrite_local]
+# Instagram 网页版解析 (进入帖子详情页触发)
+^https?:\/\/(www\.)?instagram\.com\/(p|reel|tv)\/([\w-]+) url script-response-body https://raw.githubusercontent.com/XXXGITHUB777/x/refs/heads/main/ig_web_parser.js
+
+
 /**
  * Instagram Mobile Web Parser for Quantumult X
  * 参考油猴脚本逻辑，自动转换 Shortcode 为 MediaID 并调用内部 API
  */
-[rewrite_local]
-# Instagram 网页版解析 (进入帖子详情页触发)
-^https?:\/\/(www\.)?instagram\.com\/(p|reel|tv)\/([\w-]+) url script-response-body https://raw.githubusercontent.com/XXXGITHUB777/x/refs/heads/main/ig_web_parser.js
 const url = $request.url;
 const headers = $request.headers;
 
