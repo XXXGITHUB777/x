@@ -1,6 +1,6 @@
 [rewrite_local]
 # 步骤1: 拆除安全锁 (必须用 script-response-header)
-^https?:\/\/www\.instagram\.com\/.* url script-response-header ig_save_fix.js
+^https?:\/\/www\.instagram\.com\/.* url script-response-header https://raw.githubusercontent.com/XXXGITHUB777/x/refs/heads/main/ig_save_fix.js
 [mitm]
 hostname = www.instagram.com, instagram.com
 
