@@ -14,101 +14,93 @@ hostname = www.instagram.com, instagram.com
  * 从而骗过 Safari，实现 100% 原生长按保存体验
  */
 
-let body = $response.body;
+/**
+ * Instagram Native Interaction Restorer
+ * 
+ * 功能：将覆盖在图片上的 UI 图层设置为“点击穿透”，
+ * 从而恢复浏览器原本的图片长按菜单 (Save to Photos)。
+ */
 
-const injectCode = `
+var body = $response.body;
+
+// 注入的 HTML 代码片段
+// 使用 MutationObserver 监听动态加载的内容
+var scriptContent = `
 <script>
 (function() {
-    console.log("[IG-Mimic] 脚本启动，准备克隆图片层...");
+    'use strict';
 
-    // 核心函数：处理单张图片
-    function processImage(originalImg) {
-        // 1. 检查是否已经处理过 (防止无限克隆)
-        if (originalImg.getAttribute('data-ig-mimic') === 'true') return;
-        if (originalImg.classList.contains('ig-mimic-clone')) return;
-
-        // 2. 找到图片所在的容器 (通常是 _aagv 或类似结构)
-        // 这一步是为了确保克隆图的位置和原图完全重合
-        let container = originalImg.closest('div'); 
-        if (!container) return;
-
-        // 3. 获取最高清的图片地址
-        // IG 的图片通常在 srcset 里，或者就是 src
-        let highResUrl = originalImg.src;
-        if (originalImg.srcset) {
-            // 简单的取出 srcset 中最后那个 url (通常是最大的)
-            let sources = originalImg.srcset.split(',');
-            let lastSource = sources[sources.length - 1].trim();
-            let urlPart = lastSource.split(' ')[0];
-            if (urlPart) highResUrl = urlPart;
-        }
-
-        // 4. 创建“幽灵”克隆图 (The Reader Mode Element)
-        // 这是一个纯净的 HTML 元素，没有绑定 React 事件
-        let cloneImg = document.createElement('img');
-        cloneImg.src = highResUrl;
-        cloneImg.className = 'ig-mimic-clone';
-        
-        // 5. 设置样式：绝对定位，覆盖在原图之上，且层级最高
-        cloneImg.style.cssText = \`
-            position: absolute !important;
-            top: 0 !important;
-            left: 0 !important;
-            width: 100% !important;
-            height: 100% !important;
-            z-index: 9999 !important; 
-            opacity: 0.01 !important; /* 几乎透明，只为了响应触摸，不影响视觉 */
+    // 定义一个 CSS 样式块，强制让图片接收点击，而其父级容器的遮罩层不接收点击
+    // _aagw 是 IG 目前常用的遮罩层 class，但为了保险，我们使用通用规则
+    const css = \`
+        article img {
             pointer-events: auto !important;
-            -webkit-touch-callout: default !important;
+            z-index: 999 !important;
+            user-select: auto !important;
             -webkit-user-select: auto !important;
-        \`;
-
-        // 6. 标记原图已处理
-        originalImg.setAttribute('data-ig-mimic', 'true');
-
-        // 7. 插入 DOM
-        // 必须插入到 container 的最后，确保在最上层
-        // 并且添加位置属性给父级，保证 absolute 定位准确
-        let computedStyle = window.getComputedStyle(container);
-        if (computedStyle.position === 'static') {
-            container.style.position = 'relative';
+            -webkit-touch-callout: default !important;
         }
-        container.appendChild(cloneImg);
+        /* 这是一个关键策略：让图片的所有兄弟元素（即遮罩层）失去点击能力 */
+        article div[class*="_"] {
+            /* pointer-events: none !important;  <-- 注意：这可能会影响多图滑动，下面用 JS 精细控制 */
+        }
+    \`;
 
-        console.log("[IG-Mimic] 已覆盖一张纯净图片");
-    }
+    const style = document.createElement('style');
+    style.innerHTML = css;
+    document.head.appendChild(style);
 
-    // 启动观察者：因为 IG 是无限滚动，必须持续监听 DOM 变化
-    const observer = new MutationObserver((mutations) => {
-        // 查找页面内所有的 article 图片
-        // 选择器 article img 是为了精准定位帖子内的图，避开头像等
-        let images = document.querySelectorAll('article img');
+    // 核心处理函数
+    function enableLongPress() {
+        // 找到所有帖子里的图片
+        const images = document.querySelectorAll('article img');
+        
         images.forEach(img => {
-            // 过滤掉非常小的图(可能是表情包或图标)
-            if (img.width > 100 || img.naturalWidth > 100) {
-                processImage(img);
+            // 1. 确保图片本身可以响应触摸
+            img.style.pointerEvents = 'auto';
+            img.style.webkitTouchCallout = 'default';
+
+            // 2. 寻找“罪魁祸首”：挡在图片前面的透明遮罩 div
+            // 在 IG 的结构中，图片通常在一个 div 里面，而这个 div 旁边或者上面还有其他 div 负责拦截点击
+            // 我们向上遍历两层，找到那个负责布局的容器
+            let container = img.closest('div');
+            if (container) {
+                // 让容器本身不要拦截点击，但不要隐藏它（否则排版会乱）
+                // 仅仅是让点击事件“穿透”它，到达 img
+                // 注意：我们不能粗暴地对所有父级设 none，否则无法滑动轮播图
+                
+                // 针对 IG 特定的遮罩层 (通常是紧贴着 img 的那个父级或兄弟级)
+                // 如果是单图，直接穿透父级通常没问题
+                let overlay = img.parentElement;
+                if (overlay) {
+                     // 只有当手指点在图片区域时，才让上层忽略点击
+                     overlay.style.pointerEvents = 'none';
+                }
             }
         });
+    }
+
+    // 启动监听器，因为 IG 是动态加载的
+    const observer = new MutationObserver((mutations) => {
+        enableLongPress();
     });
 
-    // 开始监听
     observer.observe(document.body, {
         childList: true,
         subtree: true
     });
-    
-    // 首次加载也执行一次
-    setTimeout(() => {
-        let images = document.querySelectorAll('article img');
-        images.forEach(img => { if(img.width > 50) processImage(img); });
-    }, 1500);
 
+    // 初始化执行
+    setTimeout(enableLongPress, 1000);
+    setTimeout(enableLongPress, 3000); // 双重保险
 })();
 </script>
 `;
 
-if (body.indexOf('</body>') !== -1) {
-    body = body.replace('</body>', injectCode + '</body>');
+// 安全地注入代码
+if (body && body.indexOf('</body>') !== -1) {
+    body = body.replace('</body>', scriptContent + '</body>');
 }
 
 $done({ body });
+
