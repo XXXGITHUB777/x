@@ -1,5 +1,5 @@
+
 [rewrite_local]
-# Instagram 网页版解析 (进入帖子详情页触发)
 ^https?:\/\/(www\.)?instagram\.com\/(p|reel|tv)\/([\w-]+) url script-response-body https://raw.githubusercontent.com/XXXGITHUB777/x/refs/heads/main/ig_web_parser.js
 
 
