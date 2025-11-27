@@ -7,129 +7,148 @@
 [mitm]
 # 必须包含这两条，对应网页版的主域名
 hostname = www.instagram.com, instagram.com
+
 /**
- * Instagram Web Native Save for Quantumult X
- * * 功能：
- * 1. 移除 CSP 策略，允许脚本执行。
- * 2. 注入 JS，自动穿透 Instagram 的遮罩层，实现长按 img 标签直接唤起 iOS 菜单。
- * 3. 严格过滤 Content-Type，防止破坏 JSON 导致白屏。
+ * 任务：Instagram 网页版原生画质长按保存 (防白屏/CSP修复版)
+ * 核心机制：移除 CSP -> 注入 Toggle 脚本 -> 动态控制图层层级
  */
 
-const url = $request.url;
-const method = $request.method;
-const headers = $response.headers;
-let body = $response.body;
+const isHtml = ($response.headers['Content-Type'] && $response.headers['Content-Type'].indexOf('text/html') !== -1) || 
+               ($response.headers['content-type'] && $response.headers['content-type'].indexOf('text/html') !== -1);
 
-// 【关键修正 1】严格过滤 Content-Type
-// 只有当响应是 HTML 页面时才注入，绝对不能修改 application/json 或其他 API 数据
-const contentType = headers['Content-Type'] || headers['content-type'] || '';
-if (!contentType.includes('text/html')) {
-    $done({}); // 直接返回，不做任何修改
-}
+// 【关键安全检查】如果不是 HTML (例如 JSON/AJAX)，直接返回，防止白屏！
+if (!isHtml) {
+    $done({});
+} else {
+    // 1. 获取原始响应体和头
+    let body = $response.body;
+    let headers = $response.headers;
 
-// 【关键修正 2】移除 CSP (Content-Security-Policy)
-// 这确保了我们在 Body 中注入的 inline-script 能够被浏览器执行
-const cspHeaders = [
-    'Content-Security-Policy',
-    'content-security-policy',
-    'Content-Security-Policy-Report-Only',
-    'content-security-policy-report-only'
-];
-
-cspHeaders.forEach(key => {
-    if (headers[key]) delete headers[key];
-});
-
-// 【核心逻辑】注入穿透脚本
-// 我们将脚本注入到 </body> 标签之前
-const injectionScript = `
-<script>
-(function() {
-    console.log('IG Native Save: Script Started');
-
-    // 样式注入：强制图片响应交互，并移除常见的遮罩层交互
-    const css = \`
-        /* 强制图片接收点击和触摸事件 */
-        article img, main img, ._aagv img { 
-            pointer-events: auto !important; 
-            z-index: 99 !important; 
-            position: relative !important;
-            touch-action: pan-y !important; /* 关键：保留垂直滚动能力 */
-            user-select: none !important;
-            -webkit-user-select: none !important;
-            -webkit-touch-callout: default !important; /* 恢复 iOS 长按菜单 */
-        }
-        
-        /* 穿透常见的遮罩层类名 (Instagram 动态类名 _aagw 等) */
-        ._aagw, ._aagv, div[role="button"] > div {
-            pointer-events: none !important;
-        }
-
-        /* 修复轮播图箭头：让左右箭头依然可点击 */
-        button[class*="_"], [role="button"] {
-            pointer-events: auto !important;
-            z-index: 100 !important; /* 确保箭头在图片之上 */
-        }
-        
-        /* 可选：给可保存的图片加一个微弱的绿色边框作为提示 */
-        img[data-ig-save-ready="true"] {
-            border: 1px solid rgba(0, 255, 0, 0.3);
-        }
-    \`;
-    
-    const style = document.createElement('style');
-    style.type = 'text/css';
-    style.appendChild(document.createTextNode(css));
-    document.head.appendChild(style);
-
-    // DOM 监听与处理逻辑
-    function enableLongPress() {
-        // 获取所有潜在的主图片
-        // Instagram 图片通常在 article 标签内，或者带有特定的 sizes 属性
-        const images = document.querySelectorAll('img');
-
-        images.forEach(img => {
-            if (img.getAttribute('data-ig-save-ready')) return; // 避免重复处理
-            
-            // 过滤掉头像、小图标 (通常小于 50px)
-            if (img.width < 50 || img.height < 50) return;
-
-            // 标记已处理
-            img.setAttribute('data-ig-save-ready', 'true');
-            
-            // 强制移除父级可能的遮挡
-            // 有些时候 pointer-events: none 的 CSS 还是会被 React 事件捕获覆盖
-            // 这里我们尝试“提升”图片
-            let parent = img.parentElement;
-            if(parent) {
-                // 确保父级不拦截
-                // parent.style.pointerEvents = 'none'; 
-                // 注意：不能无脑设置父级 none，可能会导致整个卡片无法点击进入详情
-            }
-        });
+    // 2. 移除 CSP (Content-Security-Policy) 以允许注入脚本执行
+    // 遍历可能的大小写组合，统统干掉
+    const cspKeys = ['Content-Security-Policy', 'content-security-policy', 'X-Frame-Options', 'x-frame-options'];
+    for (let key of cspKeys) {
+        if (headers[key]) delete headers[key];
     }
 
-    // 使用 MutationObserver 处理无限滚动加载的内容
-    const observer = new MutationObserver((mutations) => {
-        enableLongPress();
-    });
+    // 3. 注入客户端脚本 (Client-Side Injection)
+    // 这段 JS 将在 Safari 浏览器内部运行
+    const injectCode = `
+    <script>
+    (function() {
+        console.log('Instagram Native Saver Loaded');
 
-    observer.observe(document.body, {
-        childList: true,
-        subtree: true
-    });
+        // 创建浮动开关样式
+        const style = document.createElement('style');
+        style.innerHTML = \`
+            #insta-save-toggle {
+                position: fixed;
+                bottom: 100px;
+                right: 20px;
+                width: 40px;
+                height: 40px;
+                background: rgba(0, 0, 0, 0.6);
+                border-radius: 50%;
+                z-index: 999999;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                cursor: pointer;
+                border: 2px solid rgba(255,255,255,0.3);
+                transition: all 0.3s;
+                user-select: none;
+                -webkit-user-select: none;
+            }
+            #insta-save-toggle.active {
+                background: rgba(52, 199, 89, 0.9); /* iOS Green */
+                border-color: #fff;
+            }
+            #insta-save-toggle svg {
+                width: 20px;
+                height: 20px;
+                fill: white;
+            }
+            /* 开启保存模式后的强制样式 */
+            .save-mode-active img {
+                pointer-events: auto !important;
+                z-index: 9999 !important;
+                position: relative !important;
+                user-select: auto !important;
+                -webkit-user-select: auto !important;
+                -webkit-touch-callout: default !important;
+            }
+            /* 甚至可以尝试把覆盖在上面的 div 穿透 */
+            .save-mode-active div[role="button"], 
+            .save-mode-active div[class*="Overlay"] {
+                pointer-events: none !important;
+            }
+        \`;
+        document.head.appendChild(style);
 
-    // 初始运行
-    setTimeout(enableLongPress, 1000);
-    window.addEventListener('load', enableLongPress);
+        // 创建浮动按钮
+        const btn = document.createElement('div');
+        btn.id = 'insta-save-toggle';
+        btn.innerHTML = '<svg viewBox="0 0 24 24"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg>';
+        document.body.appendChild(btn);
 
-})();
-</script>
-`;
+        let isActive = false;
 
-// 将脚本插入到 body 结束标签前
-if (body) {
-    body = body.replace('</body>', `${injectionScript}</body>`);
+        // 切换模式逻辑
+        btn.addEventListener('click', function() {
+            isActive = !isActive;
+            if (isActive) {
+                btn.classList.add('active');
+                document.body.classList.add('save-mode-active');
+                showToast('长按保存模式：开启');
+                forceImages();
+            } else {
+                btn.classList.remove('active');
+                document.body.classList.remove('save-mode-active');
+                showToast('浏览模式：恢复');
+            }
+        });
+
+        // 提示框小工具
+        function showToast(msg) {
+            let toast = document.createElement('div');
+            toast.style.cssText = 'position:fixed;top:20px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,0.7);color:#fff;padding:8px 16px;border-radius:20px;font-size:13px;z-index:1000000;pointer-events:none;';
+            toast.innerText = msg;
+            document.body.appendChild(toast);
+            setTimeout(() => toast.remove(), 2000);
+        }
+
+        // 核心逻辑：处理 React 动态加载的图片
+        // 使用 MutationObserver 监听 DOM 变化（因为 Insta 是 SPA）
+        function forceImages() {
+            if (!isActive) return;
+            // 查找所有图片，尝试移除 srcset 以确保 Safari 锁定在当前 src，
+            // 或者仅仅提升层级。Instagram 的图片通常有复杂的 class。
+            // 这里的策略是：暴力提升所有 img 标签
+            const imgs = document.querySelectorAll('img');
+            imgs.forEach(img => {
+                // 排除头像等小图，只处理大图 (假设宽度大于 100)
+                if (img.width > 100 || img.naturalWidth > 100) {
+                    img.style.pointerEvents = 'auto';
+                    img.style.zIndex = '9999';
+                }
+            });
+        }
+
+        // 监听滚动和 DOM 变动，确保新加载的图片也能被处理
+        const observer = new MutationObserver((mutations) => {
+            if (isActive) {
+                forceImages();
+            }
+        });
+        observer.observe(document.body, { childList: true, subtree: true });
+
+    })();
+    </script>
+    `;
+
+    // 4. 将脚本插入到 body 结束标签之前
+    body = body.replace('</body>', injectCode + '</body>');
+
+    // 5. 返回修改后的 Header 和 Body
+    $done({ body: body, headers: headers });
 }
-
-$done({ headers: headers, body: body });
