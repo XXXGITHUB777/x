@@ -1,25 +1,20 @@
-这份代码在上一版的基础上进行了**深度精简和优化**。
+此脚本基于您提供的 Demo 进行严格修改。
 
-**核心改动：**
-1.  **强制纯 Emoji 输出**：无论原节点叫“香港”、“Hong Kong”还是“HK”，统一映射为国旗 Emoji（如 `🇭🇰`），不再包含文字（如“香港”）。
-2.  **紧凑编号格式**：调整了编号分隔符，现在的效果是紧凑的 `🇭🇰01`（去掉空格），完全符合您要求的 `下载用-🇭🇰01` 格式。
-3.  **保留原有特性**：倍率识别、IPLC 标签识别等功能如果开启参数依然有效，但默认情况下就是纯净的“前缀+国旗+编号”。
+**主要变更点：**
+1.  **强制纯 Emoji**：无论传入什么参数，内部强制将所有地区映射为国旗 Emoji（`const outList = FG`）。
+2.  **移除空格**：将序号连接符 `sn` 的默认值从空格改为无（`""`），实现 `🇭🇰01` 的紧凑效果。
+3.  **名称纯净化**：在重组名称时，移除了传入的 `name` 参数和原有文字，仅保留 `Emoji` + `保留标签(如IPLC)` + `倍率`。
+4.  **统一前缀**：最后一步统一添加 `下载用-`。
 
 ```javascript
 /**
- * Sub-Store Rename Script (Full Emoji Mode)
- * 目标效果：下载用-🇭🇰01, 下载用-🇺🇸02
- * 
- * 特性：
- * 1) 强制将所有地区名称替换为对应国旗 Emoji
- * 2) 自动处理同地区编号 (01, 02...)
- * 3) 统一添加前缀 "下载用-"
- * 4) 保留原脚本的倍率/标签识别功能 (可选开启)
+ * Sub-Store Rename Script (Strict Demo Modified)
+ * 效果：下载用-🇭🇰01, 下载用-🇺🇸02 (纯Emoji，无空格，保留倍率/标签)
  */
 
 const inArg = $arguments;
 
-// —— 参数处理 —— //
+// —— 参数解析 —— //
 function boolArg(v, d = false) {
   if (v === undefined || v === null) return d;
   if (typeof v === "string") {
@@ -32,39 +27,34 @@ function boolArg(v, d = false) {
   return !!v;
 }
 
-// 参数定义
-const nx     = boolArg(inArg.nx, false),      // 移除倍率名为x的节点
-      bl     = boolArg(inArg.bl, false),      // 开启倍率显示 (如 🇭🇰 x1.5)
-      nf     = boolArg(inArg.nf, false),      // 名称前置 (很少用)
-      key    = boolArg(inArg.key, false),     // 过滤关键字
-      blgd   = boolArg(inArg.blgd, false),    // 开启标签显示 (如 IPLC/BGP)
-      blpx   = boolArg(inArg.blpx, false),    // 排序优化
-      blnx   = boolArg(inArg.blnx, false),    // 过滤高倍率
-      numone = boolArg(inArg.one, false),     // 单节点不显示数字
-      clear  = boolArg(inArg.clear, true);    // 默认开启清理垃圾词
+const nx     = boolArg(inArg.nx, false),
+      bl     = boolArg(inArg.bl, false),
+      nf     = boolArg(inArg.nf, false),
+      key    = boolArg(inArg.key, false),
+      blgd   = boolArg(inArg.blgd, false),
+      blpx   = boolArg(inArg.blpx, false),
+      blnx   = boolArg(inArg.blnx, false),
+      numone = boolArg(inArg.one, false),
+      debug  = boolArg(inArg.debug, false),
+      clear  = boolArg(inArg.clear, true), // 默认清理
+      addflag= boolArg(inArg.flag, false),
+      nm     = boolArg(inArg.nm, false);
 
-// 编号分隔符：默认空字符串，实现 "🇭🇰01" 效果；如果想 "🇭🇰 01" 可传 sn=" "
-const XHFGF = inArg.sn == undefined ? "" : decodeURI(inArg.sn);
-// 内部连接符：Emoji和标签之间的空格
-const FGF = inArg.fgf == undefined ? " " : decodeURI(inArg.fgf);
-const FNAME = inArg.name == undefined ? "" : decodeURI(inArg.name);
-const BLKEY = inArg.blkey == undefined ? "" : decodeURI(inArg.blkey);
-const blockquic = inArg.blockquic == undefined ? "" : decodeURI(inArg.blockquic);
-
-// 强制设置输出目标为 FG (国旗)
-// nameMap 仅用于输入识别
-const nameMap = { cn: "cn", zh: "cn", us: "us", en: "us", quan: "quan", gq: "gq", flag: "gq" };
-const inname = nameMap[inArg.in] || ""; 
-
-// 匹配模式
 const ABSMODE = (inArg.abs || "en").toLowerCase();
 
-// ==================== 数据表 (核心) ====================
-// 统一输出目标：Flag
+const FGF = inArg.fgf == undefined ? " " : decodeURI(inArg.fgf),
+      // 🔥 修改 1: 默认连接符改为空字符串，实现 "🇭🇰01" 而非 "🇭🇰 01"
+      XHFGF = inArg.sn == undefined ? "" : decodeURI(inArg.sn),
+      FNAME = inArg.name == undefined ? "" : decodeURI(inArg.name),
+      BLKEY = inArg.blkey == undefined ? "" : decodeURI(inArg.blkey),
+      blockquic = inArg.blockquic == undefined ? "" : decodeURI(inArg.blockquic),
+      nameMap = { cn: "cn", zh: "cn", us: "us", en: "us", quan: "quan", gq: "gq", flag: "gq" },
+      inname = nameMap[inArg.in] || "",
+      outputName = nameMap[inArg.out] || "";
+
+// ==================== 数据表 ====================
 // prettier-ignore
 const FG = ['🇭🇰','🇲🇴','🇹🇼','🇯🇵','🇰🇷','🇸🇬','🇺🇸','🇬🇧','🇫🇷','🇩🇪','🇦🇺','🇦🇪','🇦🇫','🇦🇱','🇩🇿','🇦🇴','🇦🇷','🇦🇲','🇦🇹','🇦🇿','🇧🇭','🇧🇩','🇧🇾','🇧🇪','🇧🇿','🇧🇯','🇧🇹','🇧🇴','🇧🇦','🇧🇼','🇧🇷','🇻🇬','🇧🇳','🇧🇬','🇧🇫','🇧🇮','🇰🇭','🇨🇲','🇨🇦','🇨🇻','🇰🇾','🇨🇫','🇹🇩','🇨🇱','🇨🇴','🇰🇲','🇨🇬','🇨🇩','🇨🇷','🇭🇷','🇨🇾','🇨🇿','🇩🇰','🇩🇯','🇩🇴','🇪🇨','🇪🇬','🇸🇻','🇬🇶','🇪🇷','🇪🇪','🇪🇹','🇫🇯','🇫🇮','🇬🇦','🇬🇲','🇬🇪','🇬🇭','🇬🇷','🇬🇱','🇬🇹','🇬🇳','🇬🇾','🇭🇹','🇭🇳','🇭🇺','🇮🇸','🇮🇳','🇮🇩','🇮🇷','🇮🇶','🇮🇪','🇮🇲','🇮🇱','🇮🇹','🇨🇮','🇯🇲','🇯🇴','🇰🇿','🇰🇪','🇰🇼','🇰🇬','🇱🇦','🇱🇻','🇱🇧','🇱🇸','🇱🇷','🇱🇾','🇱🇹','🇱🇺','🇲🇰','🇲🇬','🇲🇼','🇲🇾','🇲🇻','🇲🇱','🇲🇹','🇲🇷','🇲🇺','🇲🇽','🇲🇩','🇲🇨','🇲🇳','🇲🇪','🇲🇦','🇲🇿','🇲🇲','🇳🇦','🇳🇵','🇳🇱','🇳🇿','🇳🇮','🇳🇪','🇳🇬','🇰🇵','🇳🇴','🇴🇲','🇵🇰','🇵🇦','🇵🇾','🇵🇪','🇵🇭','🇵🇹','🇵🇷','🇶🇦','🇷🇴','🇷🇺','🇷🇼','🇸🇲','🇸🇦','🇸🇳','🇷🇸','🇸🇱','🇸🇰','🇸🇮','🇸🇴','🇿🇦','🇪🇸','🇱🇰','🇸🇩','🇸🇷','🇸🇿','🇸🇪','🇨🇭','🇸🇾','🇹🇯','🇹🇿','🇹🇭','🇹🇬','🇹🇴','🇹🇹','🇹🇳','🇹🇷','🇹🇲','🇻🇮','🇺🇬','🇺🇦','🇺🇾','🇺🇿','🇻🇪','🇻🇳','🇾🇪','🇿🇲','🇿🇼','🇦🇩','🇷🇪','🇵🇱','🇬🇺','🇻🇦','🇱🇮','🇨🇼','🇸🇨','🇦🇶','🇬🇮','🇨🇺','🇫🇴','🇦🇽','🇧🇲','🇹🇱']
-
-// 输入识别库
 // prettier-ignore
 const EN = ['HK','MO','TW','JP','KR','SG','US','GB','FR','DE','AU','AE','AF','AL','DZ','AO','AR','AM','AT','AZ','BH','BD','BY','BE','BZ','BJ','BT','BO','BA','BW','BR','VG','BN','BG','BF','BI','KH','CM','CA','CV','KY','CF','TD','CL','CO','KM','CG','CD','CR','HR','CY','CZ','DK','DJ','DO','EC','EG','SV','GQ','ER','EE','ET','FJ','FI','GA','GM','GE','GH','GR','GL','GT','GN','GY','HT','HN','HU','IS','IN','ID','IR','IQ','IE','IM','IL','IT','CI','JM','JO','KZ','KE','KW','KG','LA','LV','LB','LS','LR','LY','LT','LU','MK','MG','MW','MY','MV','ML','MT','MR','MU','MX','MD','MC','MN','ME','MA','MZ','MM','NA','NP','NL','NZ','NI','NE','NG','KP','NO','OM','PK','PA','PY','PE','PH','PT','PR','QA','RO','RU','RW','SM','SA','SN','RS','SL','SK','SI','SO','ZA','ES','LK','SD','SR','SZ','SE','CH','SY','TJ','TZ','TH','TG','TO','TT','TN','TR','TM','VI','UG','UA','UY','UZ','VE','VN','YE','ZM','ZW','AD','RE','PL','GU','VA','LI','CW','SC','AQ','GI','CU','FO','AX','BM','TL'];
 // prettier-ignore
@@ -72,30 +62,69 @@ const ZH = ['香港','澳门','台湾','日本','韩国','新加坡','美国','�
 // prettier-ignore
 const QC = ['Hong Kong','Macao','Taiwan','Japan','Korea','Singapore','United States','United Kingdom','France','Germany','Australia','Dubai','Afghanistan','Albania','Algeria','Angola','Argentina','Armenia','Austria','Azerbaijan','Bahrain','Bangladesh','Belarus','Belgium','Belize','Benin','Bhutan','Bolivia','Bosnia and Herzegovina','Botswana','Brazil','British Virgin Islands','Brunei','Bulgaria','Burkina-faso','Burundi','Cambodia','Cameroon','Canada','CapeVerde','CaymanIslands','Central African Republic','Chad','Chile','Colombia','Comoros','Congo-Brazzaville','Congo-Kinshasa','CostaRica','Croatia','Cyprus','Czech Republic','Denmark','Djibouti','Dominican Republic','Ecuador','Egypt','EISalvador','Equatorial Guinea','Eritrea','Estonia','Ethiopia','Fiji','Finland','Gabon','Gambia','Georgia','Ghana','Greece','Greenland','Guatemala','Guinea','Guyana','Haiti','Honduras','Hungary','Iceland','India','Indonesia','Iran','Iraq','Ireland','Isle of Man','Israel','Italy','Ivory Coast','Jamaica','Jordan','Kazakstan','Kenya','Kuwait','Kyrgyzstan','Laos','Latvia','Lebanon','Lesotho','Liberia','Libya','Lithuania','Luxembourg','Macedonia','Madagascar','Malawi','Malaysia','Maldives','Mali','Malta','Mauritania','Mauritius','Mexico','Moldova','Monaco','Mongolia','Montenegro','Morocco','Mozambique','Myanmar(Burma)','Namibia','Nepal','Netherlands','New Zealand','Nicaragua','Niger','Nigeria','NorthKorea','Norway','Oman','Pakistan','Panama','Paraguay','Peru','Philippines','Portugal','PuertoRico','Qatar','Romania','Russia','Rwanda','SanMarino','SaudiArabia','Senegal','Serbia','SierraLeone','Slovakia','Slovenia','Somalia','SouthAfrica','Spain','SriLanka','Sudan','Suriname','Swaziland','Sweden','Switzerland','Syria','Tajikstan','Tanzania','Thailand','Togo','Tonga','TrinidadandTobago','Tunisia','Turkey','Turkmenistan','U.S.Virgin Islands','Uganda','Ukraine','Uruguay','Uzbekistan','Venezuela','Vietnam','Yemen','Zambia','Zimbabwe','Andorra','Reunion','Poland','Guam','Vatican','Liechtensteins','Curacao','Seychelles','Antarctica','Gibraltar','Cuba','Faroe Islands','Ahvenanmaa','Bermuda','Timor-Leste'];
 
-// ==================== 识别/清理正则 ====================
-const specialRegex = [/(\d\.)?\d+×/,/IPLC|IEPL|Kern|Edge|Pro|Std|Exp|Biz|Fam|Game|Buy|Zx|LB|Game/,];
-const nameclear = /(套餐|到期|有效|剩余|版本|已用|过期|失联|测试|官方|网址|备用|群|TEST|客服|网站|获取|订阅|流量|机场|下次|官址|联系|邮箱|工单|学术|USE|USED|TOTAL|EXPIRE|EMAIL)/i;
+// ==================== 正则定义 ====================
+const specialRegex = [
+  /(\d\.)?\d+×/,
+  /IPLC|IEPL|Kern|Edge|Pro|Std|Exp|Biz|Fam|Game|Buy|Zx|LB|Game/,
+];
+
+const nameclear =
+  /(套餐|到期|有效|剩余|版本|已用|过期|失联|测试|官方|网址|备用|群|TEST|客服|网站|获取|订阅|流量|机场|下次|官址|联系|邮箱|工单|学术|USE|USED|TOTAL|EXPIRE|EMAIL)/i;
+
+// prettier-ignore
 const regexArray=[/ˣ²/, /ˣ³/, /ˣ⁴/, /ˣ⁵/, /ˣ⁶/, /ˣ⁷/, /ˣ⁸/, /ˣ⁹/, /ˣ¹⁰/, /ˣ²⁰/, /ˣ³⁰/, /ˣ⁴⁰/, /ˣ⁵⁰/, /专线/, /(IPLC|I-P-L-C)/i, /(IEPL|I-E-P-L)/i, /核心/, /边缘/, /高级/, /标准/, /特殊/, /实验/, /商宽/, /家宽/, /家庭宽带/,/游戏|game/i, /购物/, /LB/, /cloudflare/i, /\budp\b/i, /\bgpt\b/i, /udpn\b/, ];
+// prettier-ignore
 const valueArray= [ "2×","3×","4×","5×","6×","7×","8×","9×","10×","20×","30×","40×","50×","DL","IPLC","IEPL","Kern","Edge","Pro","Std","Spec","Exp","Biz","Fam","Game","Buy","LB","CF","UDP","GPT","UDPN"];
+
 const nameblnx = /(高倍|(?!1)2+(x|倍)|ˣ²|ˣ³|ˣ⁴|ˣ⁵|ˣ¹⁰)/i;
 const namenx   = /(高倍|(?!1)(0\.| \d)+(x|倍)|ˣ²|ˣ³|ˣ⁴|ˣ⁵|ˣ¹⁰)/i;
+
 const keya = /港|Hong|HK|新加坡|SG|Singapore|日本|Japan|JP|美国|United States|US|韩|土耳其|TR|Turkey|Korea|KR||||||/i;
 const keyb = /(((1|2|3|4)\d)|(香港|Hong|HK) 0[5-9]|((新加坡|SG|Singapore|日本|Japan|JP|美国|United States|US|韩|土耳其|TR|Turkey|Korea|KR) 0[3-9]))/i;
 
-// ==================== 归一化 ====================
+// ==================== 归一化表 ====================
 const rurekey = {
-  GB: /UK/g, "B-G-P": /BGP/g, "I-E-P-L": /IEPL/gi, "I-P-L-C": /IPLC/gi, "Russia Moscow": /Moscow/g,
-  "Korea Chuncheon": /Chuncheon|Seoul/g, "Hong Kong": /Hongkong|HONG KONG/gi, "United Kingdom London": /London|Great Britain/g,
-  "Taiwan TW 台湾 ": /(台|Tai\s?wan|TW).*?|.*?(台|Tai\s?wan|TW)/g, "United States": /USA|Los Angeles|San Jose|Silicon Valley|Michigan/g,
-  澳大利亚: /澳洲|墨尔本|悉尼|土澳|(深|沪|呼|京|广|杭)澳/g, 德国: /(深|沪|呼|京|广|杭)德|法兰克福|滬德/g,
-  香港: /(深|沪|呼|京|广|杭)港/g, 台湾: /新台|新北|台(?!.*线)/g, Taiwan: /Taipei/g,
-  日本: /(深|沪|呼|京|广|杭|中|辽)日|东京|大坂/g, 新加坡: /狮城|(深|沪|呼|京|广|杭)新/g,
+  GB: /UK/g,
+  "B-G-P": /BGP/g,
+  "I-E-P-L": /IEPL/gi,
+  "I-P-L-C": /IPLC/gi,
+  "Russia Moscow": /Moscow/g,
+  "Korea Chuncheon": /Chuncheon|Seoul/g,
+  "Hong Kong": /Hongkong|HONG KONG/gi,
+  "United Kingdom London": /London|Great Britain/g,
+  
+  "Taiwan TW 台湾 ": /(台|Tai\s?wan|TW).*?|.*?(台|Tai\s?wan|TW)/g,
+  "United States": /USA|Los Angeles|San Jose|Silicon Valley|Michigan/g,
+  
+  澳大利亚: /澳洲|墨尔本|悉尼|土澳|(深|沪|呼|京|广|杭)澳/g,
+  德国: /(深|沪|呼|京|广|杭)德|法兰克福|滬德/g,
+  香港: /(深|沪|呼|京|广|杭)港/g,
+  台湾: /新台|新北|台(?!.*线)/g,
+  Taiwan: /Taipei/g,
+  日本: /(深|沪|呼|京|广|杭|中|辽)日|东京|大坂/g,
+  新加坡: /狮城|(深|沪|呼|京|广|杭)新/g,
   美国: /(深|沪|呼|京|广|杭)美|波特兰|芝加哥|哥伦布|纽约|硅谷|俄勒冈|西雅图|芝加哥/g,
-  韩国: /春川|韩|首尔/g, Japan: /Tokyo|Osaka/g, 英国: /伦敦/g, India: /Mumbai/g, Germany: /Frankfurt/g,
-  Switzerland: /Zurich/g, 俄罗斯: /莫斯科/g, 土耳其: /伊斯坦布尔/g, 泰国: /泰國|曼谷/g, 法国: /巴黎/g,
-  波斯尼亚和黑塞哥维那: /波黑共和国/g, 印尼: /印度尼西亚|雅加达/g, 印度: /孟买/g, 孟加拉国: /孟加拉/g,
-  捷克: /捷克共和国/g, 阿联酋: /(🇦🇪|阿联酋|迪拜|UAE|United\s*Arab\s*Emirates|Dubai)/gi,
-  沙特阿拉伯: /(🇸🇦|沙特|沙特阿拉伯|Saudi\s*Arabia|KSA|\bSTC\b)/gi, 家宽: /家庭宽带|家庭/g, G: /\d\s?GB/gi, Esnc: /esnc/gi,
+  韩国: /春川|韩|首尔/g,
+  Japan: /Tokyo|Osaka/g,
+  英国: /伦敦/g,
+  India: /Mumbai/g,
+  Germany: /Frankfurt/g,
+  Switzerland: /Zurich/g,
+  俄罗斯: /莫斯科/g,
+  土耳其: /伊斯坦布尔/g,
+  泰国: /泰國|曼谷/g,
+  法国: /巴黎/g,
+  波斯尼亚和黑塞哥维那: /波黑共和国/g,
+  印尼: /印度尼西亚|雅加达/g,
+  印度: /孟买/g,
+  孟加拉国: /孟加拉/g,
+  捷克: /捷克共和国/g,
+  阿联酋: /(🇦🇪|阿联酋|迪拜|UAE|United\s*Arab\s*Emirates|Dubai)/gi,
+  沙特阿拉伯: /(🇸🇦|沙特|沙特阿拉伯|Saudi\s*Arabia|KSA|\bSTC\b)/gi,
+
+  家宽: /家庭宽带|家庭/g,
+  G: /\d\s?GB/gi,
+  Esnc: /esnc/gi,
 };
 
 // ==================== 工具函数 ====================
@@ -124,35 +153,36 @@ function matchWithBoundary(name, key){
   return re.test(name);
 }
 
-// ==================== 主逻辑 ====================
+// ==================== 主流程 ====================
 function operator(pro) {
   const Allmap = {};
-  // 🔥 核心改动：强制输出目标列表为 FG (Emoji)
+  // 🔥 修改 2: 强制输出表为 FG (Emoji)，无视参数
   const outList = FG; 
   let inputList, retainKey = "";
 
-  // 自动检测输入列表 (默认全开)
-  if (inname !== "") inputList = [getList(inname)];
-  else inputList = [ZH, QC, EN];
+  if (inname !== "") {
+    inputList = [getList(inname)];
+  } else {
+    inputList = [ZH, QC, EN];
+  }
 
-  // 构建 Region -> Emoji 映射表
   inputList.forEach((arr) => {
     arr.forEach((value, valueIndex) => {
       if (value && String(value).trim() !== "") {
-        // 将任何识别到的地区词映射为对应下标的 Emoji
         Allmap[value] = outList[valueIndex];
       }
     });
   });
 
-  // 过滤节点
   if (clear || nx || blnx || key) {
     pro = pro.filter((res) => {
       const resname = res.name;
-      return !(clear && nameclear.test(resname)) &&
-             !(nx && namenx.test(resname)) &&
-             !(blnx && !nameblnx.test(resname)) &&
-             !(key && !(keya.test(resname) && /2|4|6|7/i.test(resname)));
+      const keep =
+        !(clear && nameclear.test(resname)) &&
+        !(nx && namenx.test(resname)) &&
+        !(blnx && !nameblnx.test(resname)) &&
+        !(key && !(keya.test(resname) && /2|4|6|7/i.test(resname)));
+      return keep;
     });
   }
 
@@ -161,11 +191,9 @@ function operator(pro) {
   pro.forEach((e) => {
     let bktf = false, ens = e.name;
 
-    // 归一化处理
     Object.keys(rurekey).forEach((ikey) => {
       if (rurekey[ikey].test(e.name)) {
         e.name = e.name.replace(rurekey[ikey], ikey);
-        // 如果开启了 blkey，保留特定关键词
         if (BLKEY) {
           bktf = true;
           let BLKEY_REPLACE = "", re = false;
@@ -182,16 +210,15 @@ function operator(pro) {
       }
     });
 
-    // 硬锁修正 (如 深港->香港)
     const _hadShenGang = /(深|沪|呼|京|广|杭)港/.test(ens) || /(深|沪|呼|京|广|杭)港/.test(e.name);
-    if (_hadShenGang) e.name = e.name.replace(/(深|沪|呼|京|广|杭)港/gi, "香港");
+    if (_hadShenGang) {
+      e.name = e.name.replace(/(深|沪|呼|京|广|杭)港/gi, "香港");
+    }
 
-    // QUIC 设置
     if (blockquic == "on") e["block-quic"]="on";
     else if (blockquic == "off") e["block-quic"]="off";
     else delete e["block-quic"];
 
-    // 保留词处理
     if (!bktf && BLKEY) {
       let BLKEY_REPLACE = "", re = false;
       BLKEYS.forEach((i) => {
@@ -202,9 +229,11 @@ function operator(pro) {
       retainKey = re ? BLKEY_REPLACE : BLKEYS.filter((items) => e.name.includes(items));
     }
 
-    // 提取标签/倍率 (可选)
     let ikey = "", ikeys = "";
-    if (blgd) regexArray.forEach((regex, idx) => { if (regex.test(e.name)) ikeys = valueArray[idx]; });
+    if (blgd) {
+      regexArray.forEach((regex, idx) => { if (regex.test(e.name)) ikeys = valueArray[idx]; });
+    }
+
     if (bl) {
       const match = e.name.match(/((倍率|X|x|×)\D?((\d{1,3}\.)?\d+)\D?)|((\d{1,3}\.)?\d+)(倍|X|x|×)/);
       if (match) {
@@ -214,32 +243,31 @@ function operator(pro) {
     }
 
     if (!GetK) ObjKA(Allmap);
-    // 核心匹配：查找地区名
     const findKey = AMK.find(([k]) => matchWithBoundary(e.name, k));
 
     let firstName = "", nNames = "";
     if (nf) firstName = FNAME; else nNames = FNAME;
 
-    // 🔥 重组名称：只保留 [Flag] + [保留词] + [倍率] + [标签]
-    // 原来的 regionName 文字被 findKeyValue (Flag) 直接替换
     if (findKey?.[1]) {
-      const findKeyValue = findKey[1]; // 这里已经是 Emoji 了
-      // 组合数组，过滤空值。FNAME 如果没传也是空的。
-      let keyover = [firstName, nNames, findKeyValue, retainKey, ikey, ikeys].filter(Boolean);
-      e.name = keyover.join(FGF); // 连接符，默认为空格，所以是 Flag Tag
+      const findKeyValue = findKey[1]; // 这里强制是 Emoji
+      // 🔥 修改 3: 只保留 Flag + 标签，不保留原始名称 inputs (firstName/nNames)
+      // 如果需要完全纯净，可以连 retainKey/ikey/ikeys 也去掉，但为了区分 IPLC/倍率 建议保留
+      let keyover = [];
+      keyover = keyover.concat(findKeyValue, retainKey, ikey, ikeys).filter(Boolean);
+      e.name = keyover.join(FGF);
     } else {
-      // 没匹配到地区时的兜底
-      if (inArg.nm) e.name = FNAME + FGF + e.name; else e.name = null;
+      // 匹配不到时的处理 (兜底)
+      if (nm) e.name = FNAME + FGF + e.name; else e.name = null;
     }
   });
 
   pro = pro.filter((e) => e.name !== null);
-  jxh(pro); // 排序并添加序号 (01, 02)
+  jxh(pro);
   if (numone) oneP(pro);
   if (blpx) pro = fampx(pro);
   if (key) pro = pro.filter((e) => !keyb.test(e.name));
 
-  // 🔥 最终前缀添加 (统一添加)
+  // 🔥 修改 4: 统一添加前缀
   const UNIFIED_PREFIX = "下载用-";
   pro.forEach(e => {
       e.name = UNIFIED_PREFIX + e.name;
@@ -248,20 +276,21 @@ function operator(pro) {
   return pro;
 }
 
-// ==================== 列表获取 ====================
+// ==================== 辅助函数 ====================
 function getList(arg) {
   switch (arg) {
-    case "us": return EN; case "gq": return FG; case "quan": return QC; default: return ZH;
+    case "us": return EN;
+    case "gq": return FG;
+    case "quan": return QC;
+    default: return ZH;
   }
 }
 
-// ==================== 排序与编号 ====================
 function jxh(e){
   const n=e.reduce((e,n)=>{
     const t=e.find((e)=>e.name===n.name);
-    // 🔥 修改了这里：序号前不再添加空格，直接拼接
-    if(t){ t.count++; t.items.push({...n,name:`${n。name}${XHFGF}${t。count.toString().padStart(2,"0")}`});}
-    else { e.push({name:n.name,count:1,items:[{...n,name:`${n。name}${XHFGF}01`}],});}
+    if(t){ t.count++; t.items.push({...n,name:`${n.name}${XHFGF}${t.count.toString().padStart(2,"0")}`});}
+    else { e.push({name:n.name,count:1,items:[{...n,name:`${n.name}${XHFGF}01`}],});}
     return e;
   },[]);
   const t=(typeof Array.prototype.flatMap==='function'?n.flatMap((e)=>e.items):n.reduce((a,e)=>a.concat(e.items),[]));
