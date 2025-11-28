@@ -2,7 +2,7 @@
  * 
  * 
 [rewrite_local]
-  ^https?:\/\/buy\.itunes\.apple\.com\/verifyReceipt$ url script-response-body 本地脚本路径.js
+  ^https?:\/\/buy\.itunes\.apple\.com\/verifyReceipt$ url script-response-body https://raw.githubusercontent.com/XXXGITHUB777/x/refs/heads/main/pojie/kk.js
 [mitm]
  hostname = buy.itunes.apple.com
  *************************************/
