@@ -1,0 +1,2 @@
+# > 拦截腾讯广点通 (GDT) 广告追踪
+^https?:\/\/ipv4\.gdt\.qq\.com\/get_client_ip url reject-200
