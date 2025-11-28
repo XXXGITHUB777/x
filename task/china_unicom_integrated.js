@@ -1,10 +1,10 @@
 [rewrite_local]
 # 用于首次获取Cookie，成功后务必在此行前加 # 将其注释掉
-^https:\/\/activity\.10010\.com\/sixPalaceGridTurntableLottery\/signin\/daySign url script-request-header china_unicom_integrated.js
+^https:\/\/activity\.10010\.com\/sixPalaceGridTurntableLottery\/signin\/daySign url script-request-header https://raw.githubusercontent.com/XXXGITHUB777/x/refs/heads/main/task/china_unicom_integrated.js
 
 [task_local]
 # 每天上午9点05分执行签到，时间可自定义
-5 9 * * * china_unicom_integrated.js, tag=中国联通-自动签到, enabled=true
+5 9 * * * https://raw.githubusercontent.com/XXXGITHUB777/x/refs/heads/main/task/china_unicom_integrated.js, tag=中国联通-自动签到, enabled=true
 
 
 
