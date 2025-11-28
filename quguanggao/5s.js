@@ -5,7 +5,7 @@ hostname = *.qq.com, *.qpic.cn, *.gtimg.cn, servicewechat.com, mp.weixin.qq.com,
 [rewrite_local]
 
 # 你的通用广告屏蔽脚本（唯一引用入口）
-^https?:\/\/.* url script-response-body Universal.js
+^https?:\/\/.* url script-response-body https://raw.githubusercontent.com/XXXGITHUB777/x/refs/heads/main/quguanggao/5s.js
 
 /***********************************
  * ScriptName: 微信小程序 5s 开屏广告去除 (Universal)
