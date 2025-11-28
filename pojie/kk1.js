@@ -1,11 +1,10 @@
 /*************************************
  * 
  * 
- * [rewrite_local]
- * ^https?:\/\/buy\.itunes\.apple\.com\/verifyReceipt$ url script-response-body 本地脚本路径.js
- * 
- * [mitm]
- * hostname = buy.itunes.apple.com
+[rewrite_local]
+  ^https?:\/\/buy\.itunes\.apple\.com\/verifyReceipt$ url script-response-body 本地脚本路径.js
+[mitm]
+ hostname = buy.itunes.apple.com
  *************************************/
 
 // ==============================================
