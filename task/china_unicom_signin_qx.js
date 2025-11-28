@@ -3,7 +3,8 @@
 ^https:\/\/activity\.10010\.com\/sixPalaceGridTurntableLottery\/signin\/daySign url script-request-header https://raw.githubusercontent.com/XXXGITHUB777/x/refs/heads/main/task/china_unicom_signin_qx.js
 [task_local]
 5 9 * * * https://raw.githubusercontent.com/XXXGITHUB777/x/refs/heads/main/task/china_unicom_signin_qx.js, tag=中国联通-自动签到, enabled=true
-
+[mitm]
+hostname = *.10010.com
 /*
  * @name: 中国联通签到（QX集成优化版）
  * @author: ChatGPT
