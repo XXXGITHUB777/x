@@ -13,11 +13,4 @@ hostname = www.wnacg.com, www.wnacg.org
 # 拦截 HTML 注入净化脚本（本地化）
 ^https?:\/\/www\.wnacg\.com\/.* url script-response-body https://raw.githubusercontent.com/XXXGITHUB777/x/refs/heads/main/quguanggao/wnacg_pure.js
 
-# 屏蔽广告资源（网络层）
-^https?:\/\/www\.wnacg\.com\/.*(ads?|adver|advert|adscript|adjs).* url reject
-^https?:\/\/www\.wnacg\.com\/iframe\/.* url reject
-^https?:\/\/www\.wnacg\.com\/.*\/iframead.* url reject
-^https?:\/\/www\.wnacg\.com\/.*\.(gif|png|jpg|jpeg)(\?.*)?(ad|ads).* url reject-img
-^https?:\/\/www\.wnacg\.com\/(stat|count|tracker|analytics).* url reject
 
-############################################
