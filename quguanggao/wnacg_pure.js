@@ -1,30 +1,27 @@
 /**
- *  WNACG 专用纯净版去广告脚本
- *  无外链 / 无依赖 / 无 CSP 风险 / 100% 生效
- *  by ChatGPT 专为你定制
+ *  WNACG — 终极稳定去广告（纯 HTML 重写，无 JS 注入，无 CSP 限制）
  */
 
-function main() {
-    try {
+function main(){
+    try{
         let headers = $response.headers;
         let body = $response.body;
 
         // 仅处理 HTML
         const contentType = headers["Content-Type"] || headers["content-type"] || "";
-        if (!contentType。includes("text/html")) {
+        if (!contentType.includes("text/html")) {
             $done({});
             return;
         }
 
+        // 保证字符串
         if (typeof body !== "string") {
-            body = body。toString("utf8");
+            body = body.toString("utf8");
         }
 
-        let modified = false;
-
-        // -------------------------------------------------------
-        // ① 删除 CSP / XFO 等限制，保证注入成功
-        // -------------------------------------------------------
+        // -----------------------------------------------
+        // 删除 CSP / XFO 限制（强制允许重写页面）
+        // -----------------------------------------------
         const newHeaders = { ...headers };
         delete newHeaders["Content-Security-Policy"];
         delete newHeaders["content-security-policy"];
@@ -37,71 +34,38 @@ function main() {
         newHeaders["Cross-Origin-Opener-Policy"] = "unsafe-none";
         newHeaders["Cross-Origin-Resource-Policy"] = "cross-origin";
 
-        // -------------------------------------------------------
-        // ② HTML 层级替换广告脚本：阻止 window.open
-        // -------------------------------------------------------
-        body = body。替换(/window\.open\s*\(/g， "function block_open(");
-        modified = true;
+        // -----------------------------------------------
+        // ① 直接从源码中删除广告 script/iframe/统计
+        // -----------------------------------------------
+        body = body
+            .replace(/<script[^>]*ad[^>]*>[\s\S]*?<\/script>/gi, "")
+            .replace(/<script[^>]*(ads|adjs|advert|pop|doubleclick)[^>]*>[\s\S]*?<\/script>/gi, "")
+            .replace(/<iframe[^>]*(ad|ads|doubleclick|pop|tracker)[^>]*>[\s\S]*?<\/iframe>/gi, "")
+            .replace(/<img[^>]*(ad|ads|banner)[^>]*>/gi, "")
+            .replace(/https?:\/\/[^"' ]*(ad|ads|doubleclick|pop|tracker)[^"' ]*/gi, "");
 
-        // -------------------------------------------------------
-        // ③ 删除 WNACG 常用广告 DIV（DOM 级清理）
-        // -------------------------------------------------------
-        const removeJS = `
-<script>
-(function(){
-    // 删除常见广告 DOM 节点
-    const adSelectors = [
-        "#adjs"， ".adsbygoogle", ".ad-item", ".ad", ".advbox",
-        "#HMRichBox"， ".hm-ad", ".iframead", "#bottom_ad"
-    ];
-    adSelectors.forEach(sel=>{
-        document.querySelectorAll(sel).forEach(e=>e.remove());
-    });
+        // -----------------------------------------------
+        // ② 禁止 window.open（源码级替换）
+        // -----------------------------------------------
+        body = body.replace(/window\.open\s*\(/g, "block_open(");
 
-    // 删除所有 iframe 广告
-    document.querySelectorAll("iframe").forEach(f=>{
-        if(f.src && /ad|ads|doubleclick|tracker/i.test(f.src)) f.remove();
-    });
+        // -----------------------------------------------
+        // ③ 删除常见广告容器 div
+        // -----------------------------------------------
+        body = body
+            .replace(/<div[^>]*id=["']?(ad|ads|adbox|adjs)[^>]*>[\s\S]*?<\/div>/gi, "")
+            .replace(/<div[^>]*(ad|ads|advert)[^>]*>[\s\S]*?<\/div>/gi, "");
 
-    // 禁止弹窗广告
-    window.open = ()=>{};
-    window.alert = ()=>{};
-    window.confirm = ()=>{};
-
-    // 阻止通过 appendChild 注入广告
-    const append = Element.prototype.appendChild;
-    Element.prototype.appendChild = function(el){
-        try {
-            if(el.src && /(ad|ads|doubleclick|pop)/i.test(el.src)) {
-                return document.createElement("div");
-            }
-        } catch(e){}
-        return append.call(this, el);
-    };
-
-})();
-</script>`;
-
-        // 注入到 footer 前或 body 尾部
-        if (body。includes("</body>")) {
-            body = body。replace("</body>"， removeJS + "\n</body>");
-            modified = true;
-        } else {
-            body += removeJS;
-            modified = true;
-        }
-
-        // -------------------------------------------------------
+        // -----------------------------------------------
         // 完成
-        // -------------------------------------------------------
-        if (modified) {
-            $done({ body， headers: newHeaders });
-        } else {
-            $done({});
-        }
+        // -----------------------------------------------
+        $done({
+            body,
+            headers: newHeaders
+        });
 
-    } catch (e) {
-        console.log("WNACG pure adblock error:", e);
+    } catch(e){
+        console.log("WNACG Final Error:", e);
         $done({});
     }
 }
