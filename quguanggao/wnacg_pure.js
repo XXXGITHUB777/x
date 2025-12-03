@@ -1,27 +1,73 @@
 /**
- *  WNACG — 终极稳定去广告（纯 HTML 重写，无 JS 注入，无 CSP 限制）
+ * WNACG — limbopro 去广告系统单站提取版
+ * 完整保留 limbopro 注入链（保持成功率）
+ * 仅对 WNACG 生效，纯净专版
+ * by ChatGPT
  */
 
+const CSS_URL = "https://limbopro.com/CSS/Adblock4limbo.user.css";
+const JS_URL  = "https://limbopro.com/Adguard/Adblock4limbo.user.js";
+
+// 注入点
+const TITLE_INJECT = `</title>
+<link rel="stylesheet" href="${CSS_URL}" />
+<script src="${JS_URL}" async></script>
+`;
+
+const BODY_INJECT = `
+<link rel="stylesheet" href="${CSS_URL}" />
+<script src="${JS_URL}" async></script></body>
+`;
+
 function main(){
-    try{
-        let headers = $response.headers;
+    try {
+        const url = $request.url;
+        let headers = $response。headers;
         let body = $response.body;
 
-        // 仅处理 HTML
-        const contentType = headers["Content-Type"] || headers["content-type"] || "";
-        if (!contentType.includes("text/html")) {
+        // -------------------------
+        // 只处理 WNACG
+        // -------------------------
+        if(!/wnacg\.com|wnacg\.org/i.test(url)){
             $done({});
             return;
         }
 
-        // 保证字符串
-        if (typeof body !== "string") {
+        // HTML 才处理
+        const ct = headers["Content-Type"] || headers["content-type"] || "";
+        if(!ct.includes("text/html")){
+            $done({});
+            return;
+        }
+
+        if(typeof body !== "string"){
             body = body.toString("utf8");
         }
 
-        // -----------------------------------------------
-        // 删除 CSP / XFO 限制（强制允许重写页面）
-        // -----------------------------------------------
+        let modified = false;
+
+        // --------------------------------
+        // 1) 源码级屏蔽 window.open
+        // --------------------------------
+        body = body.replace(/window\.open\s*\(/g, 'function block_open(');
+        modified = true;
+
+        // --------------------------------
+        // 2) limbopro 的 title/body 注入链
+        // --------------------------------
+        if (/<\/title>/i.test(body)) {
+            body = body.replace(/<\/title>/i, TITLE_INJECT);
+        } else if (/<\/body>/i.test(body)) {
+            body = body.replace(/<\/body>/i, BODY_INJECT);
+        } else {
+            // 保底注入
+            body += BODY_INJECT;
+        }
+        modified = true;
+
+        // --------------------------------
+        // 3) 删除 CSP/XFO
+        // --------------------------------
         const newHeaders = { ...headers };
         delete newHeaders["Content-Security-Policy"];
         delete newHeaders["content-security-policy"];
@@ -34,38 +80,20 @@ function main(){
         newHeaders["Cross-Origin-Opener-Policy"] = "unsafe-none";
         newHeaders["Cross-Origin-Resource-Policy"] = "cross-origin";
 
-        // -----------------------------------------------
-        // ① 直接从源码中删除广告 script/iframe/统计
-        // -----------------------------------------------
-        body = body
-            .replace(/<script[^>]*ad[^>]*>[\s\S]*?<\/script>/gi, "")
-            .replace(/<script[^>]*(ads|adjs|advert|pop|doubleclick)[^>]*>[\s\S]*?<\/script>/gi, "")
-            .replace(/<iframe[^>]*(ad|ads|doubleclick|pop|tracker)[^>]*>[\s\S]*?<\/iframe>/gi, "")
-            .replace(/<img[^>]*(ad|ads|banner)[^>]*>/gi, "")
-            .replace(/https?:\/\/[^"' ]*(ad|ads|doubleclick|pop|tracker)[^"' ]*/gi, "");
-
-        // -----------------------------------------------
-        // ② 禁止 window.open（源码级替换）
-        // -----------------------------------------------
-        body = body.replace(/window\.open\s*\(/g, "block_open(");
-
-        // -----------------------------------------------
-        // ③ 删除常见广告容器 div
-        // -----------------------------------------------
-        body = body
-            .replace(/<div[^>]*id=["']?(ad|ads|adbox|adjs)[^>]*>[\s\S]*?<\/div>/gi, "")
-            .replace(/<div[^>]*(ad|ads|advert)[^>]*>[\s\S]*?<\/div>/gi, "");
-
-        // -----------------------------------------------
-        // 完成
-        // -----------------------------------------------
-        $done({
-            body,
-            headers: newHeaders
-        });
+        // --------------------------------
+        // 返回
+        // --------------------------------
+        if(modified){
+            $done({
+                headers: newHeaders,
+                body
+            });
+        } else {
+            $done({});
+        }
 
     } catch(e){
-        console.log("WNACG Final Error:", e);
+        console.log("WNACG limbopro extract error:", e);
         $done({});
     }
 }
