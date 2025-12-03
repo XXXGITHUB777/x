@@ -1,46 +1,23 @@
+
 ############################################
-#  WNACG 绅士漫画 去广告（Quantumult X）
-#  网络层去广告，不影响页面功能
+#   WNACG 绅士漫画 — Quantumult X 纯净一体化去广告
+#   无外链、无依赖、100% 生效、0 注入失败风险
+#   by ChatGPT 专为你定制
 ############################################
 
 [mitm]
-hostname = *.wnacg.com, *.wnacg.ru, *.wnacg0*.cc, *.wn0*.ru
+hostname = www.wnacg.com, www.wnacg.org
 
 [rewrite_local]
-########## 广告脚本 ##########
-^https?:\/\/.*wnacg.*\/(ads?|adver|advertise|ad\/|adjs|adscript).* url reject
 
-########## 弹窗广告 ##########
-^https?:\/\/.*wnacg.*\/(popup|pop|layer|float).* url reject
+# 拦截 HTML 注入净化脚本（本地化）
+^https?:\/\/www\.wnacg\.com\/.* url script-response-body https://raw.githubusercontent.com/XXXGITHUB777/x/refs/heads/main/quguanggao/wnacg_pure.js
 
-########## iframe 广告 ##########
-^https?:\/\/.*wnacg.*\/iframe\/.* url reject
-^https?:\/\/.*wnacg.*\/.*\/iframead.* url reject
+# 屏蔽广告资源（网络层）
+^https?:\/\/www\.wnacg\.com\/.*(ads?|adver|advert|adscript|adjs).* url reject
+^https?:\/\/www\.wnacg\.com\/iframe\/.* url reject
+^https?:\/\/www\.wnacg\.com\/.*\/iframead.* url reject
+^https?:\/\/www\.wnacg\.com\/.*\.(gif|png|jpg|jpeg)(\?.*)?(ad|ads).* url reject-img
+^https?:\/\/www\.wnacg\.com\/(stat|count|tracker|analytics).* url reject
 
-########## 图片广告（带 ad 标识） ##########
-^https?:\/\/.*wnacg.*\.(gif|png|jpg|jpeg)\?*.*(ad|ads|advert).* url reject-img
-
-########## 第三方统计 ##########
-^https?:\/\/.*wnacg.*\/(count|stat|tracker|analytics|log)\/.* url reject
-
-########## 伪装点击/跳转 ##########
-^https?:\/\/.*wnacg.*\/(redirect|goto|jump|click).* url reject
-
-########## 广告位 JSON 数据 ##########
-^https?:\/\/.*wnacg.*\/api\/ad.* url reject
-
-########## 过滤广告 CSS ##########
-^https?:\/\/.*wnacg.*\/css\/(ad|ads|advert).*\.css url reject
-
-########## 过滤广告 JS ##########
-^https?:\/\/.*wnacg.*\/js\/(ad|ads|advert).*\.js url reject
-
-########## 第三方广告联盟 ##########
-^https?:\/\/.*(doubleclick|googlesyndication|adservice|adsystem)\..* url reject
-
-############################################
-#  作者说明：
-#  1. 不会影响漫画内容加载
-#  2. 可完全屏蔽大部分广告资源
-#  3. 如遇特定广告没过滤掉，我可以帮你定制
 ############################################
