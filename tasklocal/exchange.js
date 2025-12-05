@@ -3,21 +3,21 @@
  * 1元→韩元 / 1美元→人民币 / 1美元→韩元 / 10万韩元→人民币
  ****************************************/
 
-const digits = 3;
+const digits = 3; // 保留三位小数
 const $ = API("exchange");
 
-// 国旗（只保留你要的）
+// 只保留你要看的两个币种的国旗
 const flags = {
-  KRW: "🇰🇷"，
+  KRW: "🇰🇷",
   USD: "🇺🇸"
 };
 
-$。http
-  .get({
+$.http
+  。get({
     url: "https://api.exchangerate-api.com/v4/latest/CNY"
   })
-  .键，然后((response) => {
-    const data = JSON.parse(response。body);
+  。键，然后((response) => {
+    const data = JSON.parse(response.body);
     const r = data.rates;
 
     // 1 元 → 韩元
@@ -40,7 +40,7 @@ $。http
     info += `${flags.USD} 1美元 ≈ ${usd2krw} 韩元\n`;
     info += `10万韩元 ≈ ${krw100k2cny} 元`;
 
-    $.notify("今日汇率（韩国专用）", "", info);
+    $.notify("今日汇率（韩国专用）", "", info.trim());
   })
   .then(() => $.done());
 
