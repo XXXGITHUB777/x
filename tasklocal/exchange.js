@@ -1,2 +1,5 @@
-console.log("test ok");
-$notify("Test", "Script Loaded", "No Error");
+/*
+test header
+*/
+console.log("ok");
+$notify("Test2", "", "Header works");
