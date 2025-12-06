@@ -1,0 +1,47 @@
+{
+  "id": "soushuba_helper",
+  "name": "搜书吧助手",
+  "author": "@YourName",
+  "icon": "https://raw.githubusercontent.com/Orz-3/mini/master/Color/Discuz.png",
+  "repo": "https://github.com/",
+  "apps": [
+    {
+      "id": "soushuba_config",
+      "name": "搜书吧配置",
+      "keys": [
+        "soushuba_url",
+        "soushuba_cookie",
+        "soushuba_fid"
+      ],
+      "descs_html": [
+        "请填写搜书吧的相关配置信息。<br><b>说明：</b><br>1. 网址不要带最后的斜杠。<br>2. Cookie 请使用抓包工具获取。<br>3. 版块ID：资源区填 39，水区填 40。",
+        "<b>更新日志：</b><br>v27.0 - 支持 BoxJS 动态配置"
+      ],
+      "settings": [
+        {
+          "id": "soushuba_url",
+          "name": "论坛网址",
+          "val": "https://supn.nypfsdimhg.com",
+          "type": "text",
+          "desc": "填写论坛首页地址，例如 https://xxx.com"
+        },
+        {
+          "id": "soushuba_cookie",
+          "name": "Cookie",
+          "val": "",
+          "type": "textarea",
+          "autoGrow": true,
+          "rows": 3,
+          "desc": "请粘贴抓包获取的完整 Cookie 字符串"
+        },
+        {
+          "id": "soushuba_fid",
+          "name": "目标版块 ID",
+          "val": "39",
+          "type": "text",
+          "desc": "资源区: 39 | 水区: 40"
+        }
+      ]
+    }
+  ]
+}
