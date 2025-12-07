@@ -1,221 +1,229 @@
 
 
-// 1. 【物理静默】重写 console.log 为空函数，彻底杜绝日志发热
+// 【物理静默】屏蔽日志，杜绝发热
 const console = { log: () => {}, warn: () => {}, error: () => {}, info: () => {} };
 
-// 2. 【核心配置】默认全部开启“最强模式”
+// 【暴力配置】默认全部开启，不给回旋余地
 const config = {
-    keepFollow: true,      // 保留关注按钮 (设为 false 会连关注按钮都去掉，太极致了不建议)
-    enhancement: true,     // 启用图片高清化 (City Boy 必备)
-};
-
-// -----------------------------------------------------------
-// 路由分发 (极速匹配)
-// -----------------------------------------------------------
-const url = $request.url;
-const method = getMethod(url);
-if (method) {
-    try {
-        const body = JSON.parse($response.body);
-        method(body);
-        $done({ body: JSON.stringify(body) });
-    } catch (e) {
-        $done({}); // 解析失败直接放行，防止卡死
-    }
-} else {
-    $done({});
+    removeHomeVip: true,
+    removeGood: true,        // 杀好物种草
+    removeRelate: true,      // 杀相关推荐
+    removeFollow: true,      // 杀关注博主
+    removeLive: true,        // 杀直播
+    removeNext: true,        // 杀自动播放
+    removeHotTop: true,      // 杀热搜置顶
+    enhancement: true        // 强制高清图 (City Boy 视觉)
 }
 
-function getMethod(url) {
-    if (url.includes('/profile/me')) return cleanProfile; // 个人主页
-    if (url.includes('/statuses/extend')) return cleanStatus; // 微博详情
-    if (url.includes('/comments/')) return cleanComments; // 评论区 (混合/普通)
-    if (url.includes('/search/finder')) return cleanFinder; // 发现页
-    if (url.includes('/search/container_')) return cleanSearch; // 搜索结果
-    if (url.includes('/messageflow')) return cleanMessage; // 消息列表
-    if (url.includes('/statuses/container_timeline_topic')) return cleanTopic; // 超话
-    // 通用流 (首页、热搜流、好友流等)
-    if (url.includes('/statuses/') || url.includes('/groups/') || url.includes('/cardlist') || url.includes('/page')) return cleanFeed;
+const url = $request.url;
+const body = $response.body;
+
+if (!body || body.indexOf('{') === -1) $done({});
+
+const data = JSON.parse(body);
+const route = getRoute(url);
+
+if (route) {
+    route(data);
+}
+
+$done({ body: JSON.stringify(data) });
+
+// 极速路由分发
+function getRoute(url) {
+    if (url.includes('profile/me')) return cleanProfile; // 个人中心
+    if (url.includes('statuses/extend')) return cleanStatus; // 微博详情
+    if (url.includes('comments/')) return cleanComments; // 评论区
+    if (url.includes('search/finder')) return cleanFinder; // 发现页
+    if (url.includes('search/container_timeline')) return cleanSearch; // 搜索结果
+    if (url.includes('video/community_tab')) return cleanVideo; // 视频页
+    if (url.includes('statuses/container_timeline_topic')) return cleanTopic; // 超话
+    if (url.includes('statuses/show')) return cleanStatus; 
+    // 通用流 (首页、好友、分组、热搜流)
+    if (url.includes('statuses/') || url.includes('groups/') || url.includes('cardlist') || url.includes('page')) return cleanFeed;
     return null;
 }
 
 // -----------------------------------------------------------
-// 极致清理逻辑 (Nuclear Logic)
+// 核心杀手逻辑
 // -----------------------------------------------------------
 
-// 1. 通用信息流清理 (首页、热搜、列表)
+// 1. 通用信息流清洗 (最强力)
 function cleanFeed(data) {
-    // 移除顶部轮播、广告对象
     if (data.ad) delete data.ad;
     if (data.advertises) delete data.advertises;
     if (data.trends) delete data.trends;
-    if (data.pageHeader) delete data.pageHeader; // 干掉热搜页顶部的Banner
-
-    // 两个主要的列表字段：items 和 cards
-    if (data.items) data.items = processItems(data.items);
-    if (data.cards) data.cards = processItems(data.cards);
+    if (data.pageHeader) delete data.pageHeader; // 杀热搜Banner
     
-    // 状态流
     if (data.statuses) {
-        data.statuses = data.statuses.filter(item => !isAd(item));
+        data.statuses = data.statuses.filter(s => !checkAd(s));
         if (config.enhancement) data.statuses.forEach(enhancePic);
     }
+    
+    if (data.items) data.items = processList(data.items);
+    if (data.cards) data.cards = processList(data.cards);
 }
 
-// 2. 核心处理函数：处理 Items/Cards 数组
-function processItems(list) {
+// 2. 列表处理 (Items/Cards)
+function processList(list) {
     if (!list) return [];
-    const keepList = [];
+    const newList = [];
     
     for (let item of list) {
-        // --- 第一层过滤：基于 itemid 和 category ---
-        const id = item.itemid || "";
-        // 杀掉所有 Banner、广告位、推广、同城
-        if (id.match(/banner|is_ad_pos|ad_video|tongcheng|t:51/)) continue; 
-        // 杀掉“大家正在搜”、“热议”等干扰项
-        if (id.includes('finder_window') || id.includes('more_frame')) continue;
+        // 核心：基于 card_type 的黑名单 (来自 fmz200 的经验值)
+        let ct = item.card_type; 
+        if (item.data) ct = item.data.card_type;
+        
+        // 118:横图广告, 182:热议, 9:通用(需检), 165:图片
+        // 只要是推广，card_type 不管是啥都杀
+        if (checkAd(item.data || item.mblog || item)) continue;
 
-        // --- 第二层过滤：基于内容特征 ---
-        if (isAd(item.data || item.mblog || item)) continue;
-
-        // --- 第三层过滤：处理 card_group (卡片组) ---
+        // 针对 group (卡片组) 的深度清洗
         if (item.card_group) {
-            item.card_group = item.card_group.filter(sub => {
-                if (sub.card_type === 118) return false; // 横版图片广告
-                if (sub.card_type === 182) return false; // 强行插入的“热议”
-                if (sub.itemid && sub.itemid.match(/is_ad_pos|promotion/)) return false;
-                if (isAd(sub)) return false;
-                return true;
-            });
-            if (item.card_group.length === 0) continue; // 组空了就整条删
+            item.card_group = item.card_group.filter(sub => !checkAd(sub) && sub.card_type !== 118);
+            if (item.card_group.length === 0) continue;
         }
 
-        // --- 第四层过滤：特殊类型 ---
-        // 移除“可能感兴趣的人”
+        // 针对 items (Feed流) 的深度清洗
+        if (item.items) {
+            item.items = processList(item.items); // 递归清洗
+        }
+
+        // 针对 "group" 类型 (可能感兴趣的人/超话/好友)
         if (item.category === 'group') {
-             const desc = item.items?.[0]?.data?.desc;
-             if (desc === '可能感兴趣的人' || desc === '推荐') continue;
+            // 只要不是正常的 feed 列表，统统当做干扰项删掉
+            // 这里的逻辑比 fmz200 更激进：我不判断是不是好友，只要是 group 且带有推荐性质，直接杀
+            const trend = item.trend_name || "";
+            if (trend.includes('recommend') || trend.includes('ad')) continue;
+            // 杀掉 "空降", "新鲜事"
+            if (item.header?.title?.content?.match(/空降|新鲜事/)) continue;
         }
 
-        // --- 数据净化 (省内存) ---
+        // 数据净化 (去推广字段)
         const d = item.data || item.mblog;
         if (d) {
-            // 移除商品橱窗、品牌标、推广tag
-            if (d.extend_info) delete d.extend_info; 
-            if (d.common_struct) delete d.common_struct;
-            if (d.semantic_brand_params) delete d.semantic_brand_params;
+            if (d.extend_info) delete d.extend_info; // 杀橱窗
+            if (d.common_struct) delete d.common_struct; // 杀绿洲/品牌
             if (config.enhancement) enhancePic(d);
         }
 
-        keepList.push(item);
+        newList.push(item);
     }
-    return keepList;
+    return newList;
 }
 
-// 3. 广告判定 (白名单思维：只放行干净的)
-function isAd(data) {
+// 3. 广告判定 (融合了所有已知特征)
+function checkAd(data) {
     if (!data) return false;
+    
+    // 关键字特征
     if (data.mblogtypename === '广告' || data.mblogtypename === '热推') return true;
-    if (data.promotion?.type === 'ad') return true;
-    if (data.content_auth_info?.content_auth_title === '广告') return true;
-    if (data.ads_material_info?.is_ads) return true;
+    if (data.promotion && data.promotion.type === 'ad') return true;
+    if (data.content_auth_info && data.content_auth_info.content_auth_title === '广告') return true;
+    
+    // 结构特征
+    if (data.ads_material_info && data.ads_material_info.is_ads) return true;
     if (data.is_ad === 1) return true;
+    
+    // ID特征 (最准)
+    if (data.itemid) {
+        if (data.itemid.includes('is_ad_pos')) return true;
+        if (data.itemid.includes('ad_video')) return true;
+        if (data.itemid.includes('t:51')) return true; // 热搜置顶
+        if (data.itemid.includes('tips')) return true; // 提示条
+    }
+    
+    // 推广类型
+    if (data.card_type === 118) return true; // 这种全是广告
+    
     return false;
 }
 
-// 4. 图片高清化 (City Boy 视觉优化)
-function enhancePic(data) {
-    if (!data.pic_infos) return;
-    for (let k in data.pic_infos) {
-        let p = data.pic_infos[k];
-        if (p?.original?.url) {
-            // 简单粗暴：全部替换为最大图
-            const hd = p.original.url.replace(/orj\d+|mw\d+/, "oslarge");
-            p.thumbnail = { url: hd };
-            p.bmiddle = { url: hd };
-            p.large = { url: hd };
-            p.largest = { url: hd };
+// 4. 发现页 (极致空)
+function cleanFinder(data) {
+    // 杀掉头部 Banner
+    if (data.header) delete data.header;
+    
+    if (data.channelInfo && data.channelInfo.channels) {
+        // 只保留 "发现" (id 1001)
+        data.channelInfo.channels = data.channelInfo.channels.filter(c => c.id === 1001);
+        
+        // 深入清洗 Payload
+        if (data.channelInfo.channels[0] && data.channelInfo.channels[0].payload) {
+            let payload = data.channelInfo.channels[0].payload;
+            // 杀掉 "大家正在搜"
+            if (payload.loadedInfo) delete payload.loadedInfo.searchBarContent;
+            // 清洗流
+            if (payload.items) payload.items = processList(payload.items);
         }
     }
 }
 
-// 5. 个人主页 (只留我的微博)
-function cleanProfile(data) {
-    if (!data.items) return;
-    data.items = data.items.filter(item => {
-        // 只保留“我的个人信息”和“微博列表”
-        // 杀掉：VIP中心、任务、推广、红包、粉丝群、点赞记录
-        if (item.itemId === 'profileme_mine') {
-            if (item.header) item.header.vipView = null; // 去掉VIP背景
+// 5. 评论区 (杀掉所有非评论内容)
+function cleanComments(data) {
+    if (data.datas) {
+        data.datas = data.datas.filter(c => {
+            // 只保留 type 1 (普通评论)
+            // 杀掉 type 6 (关注按钮), type 15 (提示)
+            if (c.type !== 1) return false; 
+            if (c.adType && c.adType !== '显示') return false; // 只要有 adType 标记的通常都不是好东西
             return true;
-        }
-        // 除了微博流，其他基本都是垃圾
-        if (item.category === 'card') return false; 
-        return true;
-    });
+        });
+    }
 }
 
-// 6. 微博详情页 (极致纯净)
+// 6. 详情页
 function cleanStatus(data) {
-    // 杀掉“相关推荐”、“博主好物”
-    delete data.trend; 
-    delete data.reward_info; // 杀掉打赏
-    delete data.follow_data; // 杀掉顶部关注条
-    delete data.page_alerts; // 杀掉弹窗
+    delete data.trend; // 杀相关推荐
+    delete data.reward_info; // 杀打赏
+    delete data。follow_data; // 杀头部关注
+    delete data.page_alerts; // 杀弹窗
     if (data.custom_action_list) {
-        // 菜单只保留：转发、评论、点赞、编辑、删除
-        data.custom_action_list = data.custom_action_list.filter(i => 
-            ['mblog_menus_delete', 'mblog_menus_edit', 'mblog_menus_create_share', 'mblog_menus_favorite'].includes(i.type)
+        // 菜单只留最基础的
+        data。custom_action_list = data。custom_action_list。filter(i => 
+            ['mblog_menus_delete'， 'mblog_menus_edit'， 'mblog_menus_copy_url'].includes(i.type)
         );
     }
 }
 
-// 7. 评论区 (只留人话)
-function cleanComments(data) {
-    if (data。datas) {
-        data.datas = data.datas.filter(c => {
-            // 杀掉广告、相关内容、推荐、热推
-            if (['广告'， '相关内容'， '推荐'， '热推']。includes(c。adType)) return false;
-            // 杀掉包含“关注博主”按钮的非评论项
-            if (c.type === 6 || c.type === 15) return false;
-            return true;
-        });
-    }
-}
-
-// 8. 发现页 (只留热搜榜单)
-function cleanFinder(data) {
-    if (data。channelInfo?.channels) {
-        // 只保留 id: 1001 (发现)
-        data。channelInfo。channels = data。channelInfo。channels。filter(c => c.id === 1001);
-        if (data。channelInfo。channels[0]?.payload) {
-            cleanFeed(data.channelInfo.channels[0].payload);
+// 7. 个人中心
+function cleanProfile(data) {
+    if (data。items) {
+        data。items = data。items。filter(i => i。itemId === 'profileme_mine');
+        if (data.items[0] && data.items[0].header) {
+            data。items[0]。header.vipView = null; // 杀VIP背景
         }
     }
-    // 杀掉顶部的所有Banner
-    if (data。header) delete data。header;
 }
 
-// 9. 搜索结果
-function cleanSearch(data) {
-    if (data。loadedInfo) delete data.loadedInfo.searchBarContent; // 杀掉“猜你想搜”
-    cleanFeed(data);
-}
-
-// 10. 消息页
-function cleanMessage(data) {
-    if (data.messages) {
-        data.messages = data.messages.filter(m => !m.msg_card?.ad_tag); // 杀掉推广消息
-    }
-}
-
-// 11. 超话
+// 8. 超话
 function cleanTopic(data) {
     if (data.items) {
-        data.items = data.items.filter(item => {
-            // 杀掉“未关注”的推荐流
-            if (item.category === 'feed' && item.data?.buttons?.[0]?.type === 'follow') return false;
-            return !isAd(item.data);
+        // 杀掉所有 "未关注" 的推荐 Feed
+        data.items = data.items.filter(i => {
+            if (i.category === 'feed' && i.data?.buttons?.[0]?.type === 'follow') return false;
+            return !checkAd(i.data);
         });
     }
+}
+
+// 9. 图片高清化
+function enhancePic(data) {
+    if (data.pic_infos) {
+        for (let k in data.pic_infos) {
+            if (data.pic_infos[k].original) {
+                data.pic_infos[k].bmiddle.url = data.pic_infos[k].original.url.replace(/orj\d+/, 'oslarge');
+                data.pic_infos[k].large.url = data.pic_infos[k].original.url.replace(/orj\d+/, 'oslarge');
+            }
+        }
+    }
+}
+
+function cleanSearch(data) {
+    cleanFeed(data);
+    if (data.loadedInfo) delete data.loadedInfo.searchBarContent;
+}
+
+function cleanVideo(data) {
+    cleanFeed(data);
 }
