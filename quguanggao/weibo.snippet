@@ -1,45 +1,46 @@
-#!name=微博去广告-核弹极简版
 
-# 1. 0耗电拦截 (Keep it, very effective)
+
+# =======================================
+# 1. 斩首行动 (直接断连，0耗电)
+# =======================================
+# 广告图片域名
 host-suffix, fastimage.uve.weibo.com, reject
 host-suffix, adimg.vue.weibo.com, reject
-host-suffix, zymo.mps.weibo.com, reject
-host-suffix, weibomingzi.com, reject
-host-suffix, sdkapp.uve.weibo.com, reject
-host-suffix, promote.biz.weibo.cn, reject
-host-suffix, gw5.push.mcp.weibo.cn, reject
-host-suffix, gw6.push.mcp.weibo.cn, reject
-host-suffix, game.weibo.cn, reject
 host-suffix, adimg.uve.weibo.com, reject
-host-suffix, game.weibo.com, reject
-host-suffix, alitui.weibo.com, reject
+# 追踪与SDK
+host-suffix, sdkapp.uve.weibo.com, reject
+host-suffix, bootpreload.uve.weibo.com, reject
+host-suffix, bootrealtime.uve.weibo.com, reject
+# 商业推广
+host-suffix, promote.biz.weibo.cn, reject
 host-suffix, biz.weibo.com.cn, reject
 host-suffix, biz.weibo.com, reject
-host-suffix, wax.weibo.com, reject
-host-suffix, widget.weibo.com, reject
 host-suffix, ad.weibo.com, reject
 host-suffix, ad.weibo.cn, reject
-host-suffix, g.us.sinaimg.cn, reject
-host, bootpreload.uve.weibo.com, reject
-host, bootrealtime.uve.weibo.com, reject
+host-suffix, alitui.weibo.com, reject
 
-# 2. 垃圾接口直接屏蔽
+# =======================================
+# 2. 哑巴模式 (返回空数据，防止报错)
+# =======================================
+# 杀掉所有 红点、气泡、弹窗、签到、直播流
 ^https:\/\/m?api\.weibo\.c(n|om)\/2\/!\/huati\/discovery_home_bottom_channels url reject-dict
 ^https:\/\/m?api\.weibo\.c(n|om)\/2\/!\/chaohua\/discovery\/home_bottom\/switch url reject-dict
 ^https:\/\/m?api\.weibo\.c(n|om)\/2\/!\/was\/finder\/searchbarchange url reject-dict
 ^https:\/\/m?api\.weibo\.c(n|om)\/2\/push\/info url reject-dict
 ^https:\/\/m?api\.weibo\.c(n|om)\/\d/push/daily url reject-dict
 ^https?:\/\/m?api\.weibo\.c(n|om)\/2\/(push\/active|client\/addlog_batch|ad\/preload) url reject-dict
-^https:\/\/datumogs\.sports\.weibo\.c(n|om)\/wb\/api\/medal\/all url reject-dict
 ^https?:\/\/api\.weibo\.cn\/2\/video\/redpacket url reject-dict
 ^https?:\/\/api\.weibo\.cn\/2\/checkin\/show url reject-dict
 ^https?:\/\/api\.weibo\.cn\/2\/!\/live\/media_homelist url reject-dict
+^https?:\/\/api\.weibo\.cn\/2\/search\/container_discover url reject-dict
 
-# 3. 核弹脚本 (本地路径)
-# 匹配所有可能的列表、流、详情、搜索接口
-^https?:\/\/m?api\.weibo\.c(n|om)/2/(cardlist|searchall|page|flowpage|messageflow|statuses/(unread_)?friends(/|_)timeline|groups/timeline|statuses/(container_timeline|container_timeline_hot|unread_hot_timeline|extend|video_mixtimeline|repost_timeline|container_timeline_topic|container_timeline_topicpage)|profile/(me|container_timeline)|video/(community_tab|remind_info|tiny_stream_video_list)|comments/(build_comments|mix_comments)|container/get_item|search/(finder|container_timeline|container_discover)) url script-response-body https://raw.githubusercontent.com/XXXGITHUB777/x/refs/heads/main/quguanggao/weibo_main.js
+# =======================================
+# 3. 屠城脚本 (调用 weibo_max.js)
+# =======================================
+# 匹配所有可能的Timeline、详情、评论、搜索、视频接口
+^https?:\/\/m?api\.weibo\.c(n|om)/2/(cardlist|searchall|page|flowpage|messageflow|statuses/(unread_)?friends(/|_)timeline|groups/timeline|statuses/(container_timeline|container_timeline_hot|unread_hot_timeline|extend|video_mixtimeline|repost_timeline|show|container_timeline_topic|container_timeline_topicpage)|profile/(me|container_timeline)|video/(community_tab|remind_info|tiny_stream_video_list)|comments/(build_comments|mix_comments)|container/get_item|search/(finder|container_timeline)) url script-response-body https://raw.githubusercontent.com/XXXGITHUB777/x/refs/heads/main/quguanggao/weibo_main.js
 
-# 开屏广告 (保持引用)
+# 开屏广告 (引用 zmqcherish 成熟源，不重复造轮子)
 ^https?:\/\/(sdk|wb)app\.uve\.weibo\.com(/interface/sdk/sdkad.php|/wbapplua/wbpullad.lua) url script-response-body https://raw.githubusercontent.com/zmqcherish/proxy-script/main/weibo_launch.js
 
 hostname = *.weibo.cn, *.weibo.com, weibo.com
