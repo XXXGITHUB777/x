@@ -1,8 +1,6 @@
-#!name=微博去广告-静默版(本地)
+#!name=微博去广告-核弹极简版
 
-# ==========================================
-# 0. 暴力拦截 (保持)
-# ==========================================
+# 1. 0耗电拦截 (Keep it, very effective)
 host-suffix, fastimage.uve.weibo.com, reject
 host-suffix, adimg.vue.weibo.com, reject
 host-suffix, zymo.mps.weibo.com, reject
@@ -25,9 +23,7 @@ host-suffix, g.us.sinaimg.cn, reject
 host, bootpreload.uve.weibo.com, reject
 host, bootrealtime.uve.weibo.com, reject
 
-# ==========================================
-# 1. 简单接口 Reject
-# ==========================================
+# 2. 垃圾接口直接屏蔽
 ^https:\/\/m?api\.weibo\.c(n|om)\/2\/!\/huati\/discovery_home_bottom_channels url reject-dict
 ^https:\/\/m?api\.weibo\.c(n|om)\/2\/!\/chaohua\/discovery\/home_bottom\/switch url reject-dict
 ^https:\/\/m?api\.weibo\.c(n|om)\/2\/!\/was\/finder\/searchbarchange url reject-dict
@@ -39,16 +35,11 @@ host, bootrealtime.uve.weibo.com, reject
 ^https?:\/\/api\.weibo\.cn\/2\/checkin\/show url reject-dict
 ^https?:\/\/api\.weibo\.cn\/2\/!\/live\/media_homelist url reject-dict
 
-# ==========================================
-# 2. 脚本净化 (调用本地静默版)
-# ==========================================
-# 核心变化：这里指向了本地脚本 weibo_silent.js
-^https?:\/\/m?api\.weibo\.c(n|om)/2/(cardlist|searchall|page|flowpage|messageflow|statuses/(unread_)?friends(/|_)timeline|groups/timeline|statuses/(container_timeline|container_timeline_hot|unread_hot_timeline|extend|video_mixtimeline|repost_timeline|container_timeline_topic|container_timeline_topicpage)|profile/(me|container_timeline)|video/(community_tab|remind_info|tiny_stream_video_list)|comments/(build_comments|mix_comments)|container/get_item|search/(finder|container_timeline|container_discover)) url script-response-body https://raw.githubusercontent.com/XXXGITHUB777/x/refs/heads/main/quguanggao/weibo_main.js
+# 3. 核弹脚本 (本地路径)
+# 匹配所有可能的列表、流、详情、搜索接口
+^https?:\/\/m?api\.weibo\.c(n|om)/2/(cardlist|searchall|page|flowpage|messageflow|statuses/(unread_)?friends(/|_)timeline|groups/timeline|statuses/(container_timeline|container_timeline_hot|unread_hot_timeline|extend|video_mixtimeline|repost_timeline|container_timeline_topic|container_timeline_topicpage)|profile/(me|container_timeline)|video/(community_tab|remind_info|tiny_stream_video_list)|comments/(build_comments|mix_comments)|container/get_item|search/(finder|container_timeline|container_discover)) url script-response-body weibo_nuclear.js
 
-# 开屏广告 (这个脚本很小，远程即可，不影响发热)
+# 开屏广告 (保持引用)
 ^https?:\/\/(sdk|wb)app\.uve\.weibo\.com(/interface/sdk/sdkad.php|/wbapplua/wbpullad.lua) url script-response-body https://raw.githubusercontent.com/zmqcherish/proxy-script/main/weibo_launch.js
 
-# ==========================================
-# Hostname 配置
-# ==========================================
 hostname = *.weibo.cn, *.weibo.com, weibo.com
