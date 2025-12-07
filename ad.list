@@ -65,9 +65,12 @@ DOMAIN-SUFFIX,evtubescms.phncdn.com,reject
 #### DOMAIN-SUFFIX,killcovid2021.com,reject
 
 ##### ##### ##### ##### ##### 正常 ##### ##### ##### ##### ##### ##### ##### 
-# > 哔哩哔哩 - BILIBILI(PINK)
+# > 哔哩哔哩 - 物理屏蔽 (最省电)
+# 拦截客服、广告追踪、游戏中心追踪、HTTPDNS
 host-keyword, api.sobot.com, reject
 host-suffix, cm.ad.bilibili.com, reject
 host-suffix, cm.adcommon.bilibili.com, reject
 host-suffix, cm.game.bilibili.com, reject
 host-suffix, cm.track.biligame.bilibili.com, reject
+host, mall.bilibili.com, reject
+host, httpdns.bilivideo.com, reject
