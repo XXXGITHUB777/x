@@ -1,9 +1,10 @@
-#!name=微博去广告(性能终极版)
 
-# ========================================
-# 1. 域名层级拦截 (最省电，直接阻断连接)
-# ========================================
-# 涵盖了开屏广告预加载、阿里系追踪、热流广告域名
+
+# ==========================================
+# 第一步：暴力拦截 (0 CPU占用，省电核心)
+# ==========================================
+# 涉及 域名后缀(host-suffix) 和 完整域名(host)
+# 拦截开屏预加载、阿里系追踪、游戏广告、活动推广
 host-suffix, fastimage.uve.weibo.com, reject
 host-suffix, adimg.vue.weibo.com, reject
 host-suffix, zymo.mps.weibo.com, reject
@@ -26,27 +27,36 @@ host-suffix, g.us.sinaimg.cn, reject
 host, bootpreload.uve.weibo.com, reject
 host, bootrealtime.uve.weibo.com, reject
 
-# ========================================
-# 2. 简单接口 Reject (减少脚本唤醒，保护电池)
-# ========================================
-# 各种红点、气泡、无用的上传日志
-^https:\/\/m?api\.weibo\.c(n|om)\/2\/!\/huati\/discovery_home_bottom_channels reject-dict
-^https:\/\/m?api\.weibo\.c(n|om)\/2\/!\/chaohua\/discovery\/home_bottom\/switch reject-dict
-^https:\/\/m?api\.weibo\.c(n|om)\/2\/!\/was\/finder\/searchbarchange reject-dict
-^https:\/\/m?api\.weibo\.c(n|om)\/2\/push\/info reject-dict
-^https:\/\/m?api\.weibo\.c(n|om)\/\d/push/daily reject-dict
-^https?:\/\/m?api\.weibo\.c(n|om)\/2\/(push\/active|client\/addlog_batch|ad\/preload) reject-dict
-^https:\/\/datumogs\.sports\.weibo\.c(n|om)\/wb\/api\/medal\/all reject-dict
-^https?:\/\/api\.weibo\.cn\/2\/video\/redpacket reject-dict
-^https?:\/\/api\.weibo\.cn\/2\/checkin\/show reject-dict
+# ==========================================
+# 第二步：精细化拒绝 (Reject-Dict)
+# ==========================================
+# 针对具体的API路径返回空数据，防止客户端报错重试
+# 涵盖：红包、签到、直播流、热搜置顶、无用日志
+^https:\/\/m?api\.weibo\.c(n|om)\/2\/!\/huati\/discovery_home_bottom_channels url reject-dict
+^https:\/\/m?api\.weibo\.c(n|om)\/2\/!\/chaohua\/discovery\/home_bottom\/switch url reject-dict
+^https:\/\/m?api\.weibo\.c(n|om)\/2\/!\/was\/finder\/searchbarchange url reject-dict
+^https:\/\/m?api\.weibo\.c(n|om)\/2\/push\/info url reject-dict
+^https:\/\/m?api\.weibo\.c(n|om)\/\d/push/daily url reject-dict
+^https?:\/\/m?api\.weibo\.c(n|om)\/2\/(push\/active|client\/addlog_batch|ad\/preload) url reject-dict
+^https:\/\/datumogs\.sports\.weibo\.c(n|om)\/wb\/api\/medal\/all url reject-dict
+^https?:\/\/api\.weibo\.cn\/2\/video\/redpacket url reject-dict
+^https?:\/\/api\.weibo\.cn\/2\/checkin\/show url reject-dict
+^https?:\/\/api\.weibo\.cn\/2\/!\/live\/media_homelist url reject-dict
 
-# ========================================
-# 3. 核心融合脚本 (路由分发模式)
-# ========================================
-# 涵盖：首页流、热搜、搜索、超话、详情页、评论、个人主页
-# 注意：请确保下方脚本路径正确
-^https?:\/\/m?api\.weibo\.c(n|om)/2/(cardlist|searchall|page|flowpage|messageflow|statuses/(unread_)?friends(/|_)timeline|groups/timeline|statuses/(container_timeline|container_timeline_hot|unread_hot_timeline|extend|video_mixtimeline|repost_timeline|container_timeline_topic|container_timeline_topicpage)|profile/(me|container_timeline)|video/(community_tab|remind_info|tiny_stream_video_list)|(\!/)?live/media_homelist|comments/(build_comments|mix_comments)|container/get_item|search/(finder|container_timeline|container_discover)) url script-response-body https://raw.githubusercontent.com/XXXGITHUB777/x/refs/heads/main/quguanggao/weibo_main.js
-# 移除开屏广告 (使用成熟的 launch 方案)
+# ==========================================
+# 第三步：脚本净化 (引用成熟源)
+# ==========================================
+# 1. 开屏广告：使用 zmqcherish 的脚本 (稳定，闪屏处理得最好) [cite: 6]
 ^https?:\/\/(sdk|wb)app\.uve\.weibo\.com(/interface/sdk/sdkad.php|/wbapplua/wbpullad.lua) url script-response-body https://raw.githubusercontent.com/zmqcherish/proxy-script/main/weibo_launch.js
 
+# 2. 内容净化：使用 fmz200 的脚本 (功能最全，去除信息流广告、推广、博主好物等) [cite: 6, 8]
+# 这是一个聚合正则，匹配所有需要处理的微博API，直接交给 fmz200 处理
+^https?:\/\/m?api\.weibo\.c(n|om)/2/(cardlist|searchall|page|flowpage|messageflow|statuses/(unread_)?friends(/|_)timeline|groups/timeline|statuses/(container_timeline|container_timeline_hot|unread_hot_timeline|extend|video_mixtimeline|repost_timeline|container_timeline_topic|container_timeline_topicpage)|profile/(me|container_timeline)|video/(community_tab|remind_info|tiny_stream_video_list)|comments/(build_comments|mix_comments)|container/get_item|search/(finder|container_timeline|container_discover)) url script-response-body https://raw.githubusercontent.com/fmz200/wool_scripts/main/Scripts/weibo/weibo_main.js
+
+# 3. 微博会员图标解锁 (可选，fmz200) [cite: 9]
+^https?:\/\/new\.vip\.weibo\.c(n|om)/aj/appicon/list url script-response-body https://raw.githubusercontent.com/fmz200/wool_scripts/main/Scripts/weibo/weibo_vip.js
+
+# ==========================================
+# Hostname 配置
+# ==========================================
 hostname = *.weibo.cn, *.weibo.com, weibo.com
