@@ -1,10 +1,8 @@
-
+#!name=微博去广告-静默版(本地)
 
 # ==========================================
-# 第一步：暴力拦截 (0 CPU占用，省电核心)
+# 0. 暴力拦截 (保持)
 # ==========================================
-# 涉及 域名后缀(host-suffix) 和 完整域名(host)
-# 拦截开屏预加载、阿里系追踪、游戏广告、活动推广
 host-suffix, fastimage.uve.weibo.com, reject
 host-suffix, adimg.vue.weibo.com, reject
 host-suffix, zymo.mps.weibo.com, reject
@@ -28,10 +26,8 @@ host, bootpreload.uve.weibo.com, reject
 host, bootrealtime.uve.weibo.com, reject
 
 # ==========================================
-# 第二步：精细化拒绝 (Reject-Dict)
+# 1. 简单接口 Reject
 # ==========================================
-# 针对具体的API路径返回空数据，防止客户端报错重试
-# 涵盖：红包、签到、直播流、热搜置顶、无用日志
 ^https:\/\/m?api\.weibo\.c(n|om)\/2\/!\/huati\/discovery_home_bottom_channels url reject-dict
 ^https:\/\/m?api\.weibo\.c(n|om)\/2\/!\/chaohua\/discovery\/home_bottom\/switch url reject-dict
 ^https:\/\/m?api\.weibo\.c(n|om)\/2\/!\/was\/finder\/searchbarchange url reject-dict
@@ -44,17 +40,13 @@ host, bootrealtime.uve.weibo.com, reject
 ^https?:\/\/api\.weibo\.cn\/2\/!\/live\/media_homelist url reject-dict
 
 # ==========================================
-# 第三步：脚本净化 (引用成熟源)
+# 2. 脚本净化 (调用本地静默版)
 # ==========================================
-# 1. 开屏广告：使用 zmqcherish 的脚本 (稳定，闪屏处理得最好) [cite: 6]
+# 核心变化：这里指向了本地脚本 weibo_silent.js
+^https?:\/\/m?api\.weibo\.c(n|om)/2/(cardlist|searchall|page|flowpage|messageflow|statuses/(unread_)?friends(/|_)timeline|groups/timeline|statuses/(container_timeline|container_timeline_hot|unread_hot_timeline|extend|video_mixtimeline|repost_timeline|container_timeline_topic|container_timeline_topicpage)|profile/(me|container_timeline)|video/(community_tab|remind_info|tiny_stream_video_list)|comments/(build_comments|mix_comments)|container/get_item|search/(finder|container_timeline|container_discover)) url script-response-body https://raw.githubusercontent.com/XXXGITHUB777/x/refs/heads/main/quguanggao/weibo_main.js
+
+# 开屏广告 (这个脚本很小，远程即可，不影响发热)
 ^https?:\/\/(sdk|wb)app\.uve\.weibo\.com(/interface/sdk/sdkad.php|/wbapplua/wbpullad.lua) url script-response-body https://raw.githubusercontent.com/zmqcherish/proxy-script/main/weibo_launch.js
-
-# 2. 内容净化：使用 fmz200 的脚本 (功能最全，去除信息流广告、推广、博主好物等) [cite: 6, 8]
-# 这是一个聚合正则，匹配所有需要处理的微博API，直接交给 fmz200 处理
-^https?:\/\/m?api\.weibo\.c(n|om)/2/(cardlist|searchall|page|flowpage|messageflow|statuses/(unread_)?friends(/|_)timeline|groups/timeline|statuses/(container_timeline|container_timeline_hot|unread_hot_timeline|extend|video_mixtimeline|repost_timeline|container_timeline_topic|container_timeline_topicpage)|profile/(me|container_timeline)|video/(community_tab|remind_info|tiny_stream_video_list)|comments/(build_comments|mix_comments)|container/get_item|search/(finder|container_timeline|container_discover)) url script-response-body https://raw.githubusercontent.com/fmz200/wool_scripts/main/Scripts/weibo/weibo_main.js
-
-# 3. 微博会员图标解锁 (可选，fmz200) [cite: 9]
-^https?:\/\/new\.vip\.weibo\.c(n|om)/aj/appicon/list url script-response-body https://raw.githubusercontent.com/fmz200/wool_scripts/main/Scripts/weibo/weibo_vip.js
 
 # ==========================================
 # Hostname 配置
