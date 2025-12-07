@@ -61,12 +61,7 @@ host, ad.weibo.cn, reject
 # 仅保留 weibo_main.js，移除 ads.js 和 keywos.js
 #############################################
 
-# 微博国际版 - 趋势/时间流
-^https?:\/\/weibointl\.api\.weibo\.cn\/portal\.php\?a=trends url script-response-body https://raw.githubusercontent.com/fmz200/wool_scripts/main/Scripts/weibo/weibo_main.js
-^https?:\/\/api\.weibo\.cn\/\d\/statuses\/.*timeline url script-response-body https://raw.githubusercontent.com/fmz200/wool_scripts/main/Scripts/weibo/weibo_main.js
-
 # 微博国内版 - 核心时间流/搜索/个人页/评论
 # 合并了原本分散在多个脚本中的正则，统一处理
-^https?:\/\/m?api\.weibo\.c(n|om)/2/(cardlist|searchall|page|messageflow|statuses/(unread_)?friends(/|_)timeline|groups/timeline|statuses/(container_timeline|container_timeline_hot|unread_hot_timeline|extend|video_mixtimeline|repost_timeline)|profile/(me|container_timeline)|video/(community_tab|remind_info|tiny_stream_video_list)|checkin/show|(\!/)?live/media_homelist|comments/build_comments|container/get_item) url script-response-body https://raw.githubusercontent.com/fmz200/wool_scripts/main/Scripts/weibo/weibo_main.js
-
+^https?:\/\/m?api\.weibo\.c(n|om)/2/(cardlist|searchall|page|messageflow|statuses/(unread_)?friends(/|_)timeline|groups/timeline|statuses/(container_timeline|container_timeline_hot|unread_hot_timeline|extend|video_mixtimeline|repost_timeline)|profile/(me|container_timeline)|video/(community_tab|remind_info|tiny_stream_video_list)|checkin/show|(\!/)?live/media_homelist|comments/build_comments|container/get_item) url script-response-body https://raw.githubusercontent.com/XXXGITHUB777/x/refs/heads/main/quguanggao/weibo_main.js
 hostname = *.weibo.cn, *.weibo.com, weibo.com
