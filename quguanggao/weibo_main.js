@@ -1,7 +1,4 @@
 /**
- * @author @fmz200 (Modified by Gemini for iP7+ Performance)
- * @function 微博去广告-静默版
- * @description 关闭了调试日志，保留了原版最强去广告逻辑
  */
 
 const version = 'v2025.Silent';
