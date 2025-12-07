@@ -1,25 +1,25 @@
 /**
  * @author @fmz200 & @zmqcherish
- * @function 微博去广告 - 极致省电魔改版
+ * @function 微博去广告 - 强力修复版
  * @date 2025-12-07
+ * @desc 修复信息流广告漏网之鱼，保留极致省电逻辑（无日志、无皮肤）
  */
 
-const $ = new Env("微博去广告省电版");
+const $ = new Env("微博去广告强力版");
 
-// 强制覆盖配置，不仅为了去广告，更是为了省资源
 const mainConfig = {
-    isDebug: false,                // 【关键】关闭调试日志，极大降低I/O发热
+    isDebug: false,                // 关闭调试日志，省电
     removeHomeVip: true,           // 移除个人中心VIP栏
     removeHomeCreatorTask: true,   // 移除创作者中心轮播
     removeRelate: true,            // 移除详情页“相关推荐”
     removeGood: true,              // 移除“博主好物种草”
-    removeFollow: true,            // 移除“关注博主”按钮（误触且占地）
+    removeFollow: true,            // 移除“关注博主”按钮
     modifyMenus: true,             // 精简长按菜单
     removeRelateItem: true,        // 移除评论区“相关内容”
     removeRecommendItem: true,     // 移除评论区“推荐内容”
     removeRewardItem: true,        // 移除打赏模块
     removeLiveMedia: true,         // 移除首页顶部直播
-    removeNextVideo: true,         // 【关键】关闭自动播放下一个视频（非常省流量和电）
+    removeNextVideo: true,         // 关闭自动播放下一个视频
     removePinedTrending: true,     // 移除热搜置顶
     removeInterestFriendInTopic: true, 
     removeInterestTopic: true,
@@ -28,12 +28,10 @@ const mainConfig = {
     removeLvZhou: true,            // 移除绿洲
     removeSearchWindow: true,      // 移除搜索页浮窗
     
-    // 下面两项设置为null，彻底关闭皮肤和图标逻辑
-    profileSkin1: null,
+    profileSkin1: null,            // 关闭皮肤逻辑
     profileSkin2: null
 }
 
-// 菜单配置：只保留核心功能，减少对象遍历
 const itemMenusConfig = {
     creator_task: false, mblog_menus_custom: false, mblog_menus_video_later: false,
     mblog_menus_comment_manager: true, mblog_menus_avatar_widget: false, mblog_menus_card_bg: false,
@@ -45,8 +43,8 @@ const itemMenusConfig = {
     mblog_menus_report: true, mblog_menus_apeal: false, mblog_menus_home: true
 }
 
-const modifyCardsUrls = ['/cardlist', 'video/community_tab', '/searchall'];
-const modifyStatusesUrls = ['statuses/friends/timeline', 'statuses/unread_friends_timeline', 'statuses/unread_hot_timeline', 'groups/timeline'];
+const modifyCardsUrls = ['/cardlist', 'video/community_tab', '/searchall', '/page'];
+const modifyStatusesUrls = ['statuses/friends/timeline', 'statuses/unread_friends_timeline', 'statuses/unread_hot_timeline', 'groups/timeline', 'statuses/home_timeline'];
 
 const otherUrls = {
     '/profile/me': 'removeHome',
@@ -63,17 +61,16 @@ const otherUrls = {
     '/search/container_timeline': 'removeSearch',
     '/search/container_discover': 'removeSearch',
     '/2/messageflow': 'removeMsgAd',
-    '/2/page?': 'removePage',
-    '/statuses/container_timeline_topic?': 'topicHandler',
-    '/statuses/container_timeline?': 'removeMain',
+    '/statuses/container_timeline_topic': 'topicHandler',
+    '/statuses/container_timeline': 'removeMain',
     '/statuses/container_timeline_unread': 'removeMain',
-    '/statuses/container_timeline_hot?': 'removeMain',
+    '/statuses/container_timeline_hot': 'removeMain',
     '/statuses/repost_timeline': 'removeRepost'
 }
 
 let url = $request.url;
 let body = $response.body;
-// 快速检查：如果不是JSON直接返回，节省解析时间
+
 if (!body || body.indexOf('{') === -1) {
     $.done({});
 } else {
@@ -88,8 +85,7 @@ if (!body || body.indexOf('{') === -1) {
             $.done({});
         }
     } catch (e) {
-        // 出错直接返回原数据，不阻塞
-        console.log("Weibo Script Error");
+        console.log("Weibo Script Error: " + e.message);
         $.done({});
     }
 }
@@ -106,14 +102,92 @@ function getModifyMethod(url) {
     return null;
 }
 
+// 核心判断逻辑：恢复了完整的广告特征检查
 function isAd(data) {
     if (!data) return false;
-    if (data.mblogtypename?.includes('广告') || data.mblogtypename?.includes('热推')) return true;
-    if (data.promotion?.type === 'ad') return true;
-    if (data.content_auth_info?.content_auth_title?.includes("广告")) return true;
-    if (data.ads_material_info?.is_ads) return true;
+    
+    // 1. 明显的文字标记
+    if (data.mblogtypename === '广告' || data.mblogtypename === '热推') return true;
+    if (data.content_auth_info?.content_auth_title === '广告') return true;
+    
+    // 2. 字段标记
     if (data.is_ad === 1) return true;
+    if (data.ad_state === 1) return true;
+    
+    // 3. 推广结构体
+    if (data.promotion && data.promotion.type === 'ad') return true;
+    if (data.ads_material_info && data.ads_material_info.is_ads) return true;
+    
+    // 4. 隐蔽的广告ID特征 (来自weibo_ads.js)
+    if (data.itemid && (data.itemid.includes("is_ad_pos") || data.itemid.includes("cate_type:tongcheng"))) return true;
+
     return false;
+}
+
+// 深度清理：移除微博正文中的推广卡片（如橱窗、品牌tag）
+function cleanStatus(item) {
+    if (!item.data) return item;
+    // 高清图处理 (保留优化)
+    if (item.data.pic_infos) {
+        for (let key in item.data.pic_infos) {
+            let picture = item.data.pic_infos[key];
+            let high_url = picture.original.url.replace("orh1080", "oslarge");
+            picture.largest.url = high_url;
+            picture.thumbnail.url = high_url;
+            picture.large.url = high_url;
+            picture.middleplus.url = high_url;
+            picture.mw2000.url = high_url;
+            picture.bmiddle.url = high_url;
+        }
+    }
+    // 移除推广小卡片
+    if (item.data.extend_info) {
+         delete item.data.extend_info.shopwindow_cards; // 橱窗
+         delete item.data.extend_info.ad_semantic_brand; // 品牌
+    }
+    if (item.data.semantic_brand_params) delete item.data.semantic_brand_params;
+    if (item.data.common_struct) delete item.data.common_struct;
+    
+    return item;
+}
+
+// 处理标准的 status 时间流
+function removeTimeLine(data) {
+    if (data.ad) delete data.ad;
+    if (data.advertises) delete data.advertises;
+    if (data.trends) delete data.trends;
+    
+    if (!data.statuses) return;
+    
+    let newStatuses = [];
+    for (const s of data.statuses) {
+        if (!isAd(s)) {
+            // 绿洲模块移除
+            if (mainConfig.removeLvZhou && s.common_struct) {
+                 s.common_struct = s.common_struct.filter(i => i.name !== '绿洲');
+            }
+            newStatuses.push(cleanStatus({data: s}).data); // 复用cleanStatus逻辑
+        }
+    }
+    data.statuses = newStatuses;
+}
+
+// 处理 container 类型的流（推荐、热门等）
+function removeMain(data) {
+    if (!data.items) return data;
+    let newItems = [];
+    for (let item of data.items) {
+        if (checkJunkTopic(item)) continue; // 移除推荐超话卡片
+        
+        // 必须检查 item.data 是否为广告
+        if (!isAd(item.data)) {
+            // 有些广告藏在 category = 'feed' 但 data 中有 promotion
+            if (item.category === 'feed' && item.data && item.data.mblogtypename === '广告') continue;
+            newItems.push(cleanStatus(item));
+        }
+    }
+    data.items = newItems;
+    return data;
 }
 
 function checkJunkTopic(item) {
@@ -130,57 +204,40 @@ function removeRepost(data) {
     return data;
 }
 
-function removeMain(data) {
-    if (!data.items) return data;
-    let newItems = [];
-    for (let item of data.items) {
-        if (checkJunkTopic(item)) continue;
-        if (!isAd(item.data)) {
-            // 移除图片对象中的无用字段，减小体积 (可选，为了极致性能保留原逻辑但移除日志)
-            if (item.data?.pic_infos) {
-                for (let key in item.data.pic_infos) {
-                    let picture = item.data.pic_infos[key];
-                    let high_url = picture.original.url.replace("orh1080", "oslarge");
-                    picture.largest.url = high_url;
-                    picture.thumbnail.url = high_url;
-                    picture.large.url = high_url;
-                    picture.middleplus.url = high_url;
-                    picture.mw2000.url = high_url;
-                    picture.bmiddle.url = high_url;
-                }
-            }
-            if(item.data?.extend_info) {
-                 delete item.data.extend_info.shopwindow_cards;
-                 delete item.data.extend_info.ad_semantic_brand;
-            }
-            if (item.data?.semantic_brand_params) delete item.data.semantic_brand_params;
-            if (item.data?.common_struct) delete item.data.common_struct;
-            newItems.push(item);
-        }
-    }
-    data.items = newItems;
-    return data;
-}
-
+// 增强的超话处理 (合并了 weibo_ads.js 的逻辑)
 function topicHandler(data) {
     const items = data.items;
     if (!items) return data;
-    if (!mainConfig.removeUnfollowTopic) return data;
+    
+    // 过滤掉 card_type 19/179 以外的干扰项，或者广告
+    const validCardTypes = [19, 179]; 
     let newItems = [];
+    let foundFeed = false;
+
     for (let c of items) {
-        let addFlag = true;
+        if (isAd(c.data)) continue;
+
         let category = c.category;
-        if (category === 'feed') {
-            let btns = c?.data?.buttons;
-            if (btns && btns.length > 0 && btns[0].type === 'follow') addFlag = false;
-        } else if (category === 'group') {
-             const cc = c.header?.title?.content;
-             if (cc && cc.indexOf('空降发帖') > -1) addFlag = false;
-             // 省略了复杂的子项检查，直接保留非广告项，降低CPU消耗
-        } else if (category === 'card') {
-            if (c.data?.top?.title === '正在活跃' || (c.data?.card_type === 200 && c.data?.group) || c.data?.itemid.indexOf('infeed_may_interest_in') > -1) addFlag = false;
+        let cardType = c.data?.card_type;
+
+        // 如果配置了移除未关注，且这是个 Feed，且含有关注按钮，则移除
+        if (mainConfig.removeUnfollowTopic && category === 'feed' && c.data?.buttons?.[0]?.type === 'follow') continue;
+
+        // 核心清理逻辑
+        if (validCardTypes.includes(cardType)) {
+             newItems.push(c);
+             continue;
         }
-        if (addFlag) newItems.push(c);
+
+        if (foundFeed && category !== 'feed') continue; // Feed流之后的非Feed内容通常是干扰
+        if (category === 'feed') foundFeed = true;
+        
+        // 移除“空降发帖”等干扰group
+        if (category === 'group') {
+             if (c.header?.title?.content?.includes('空降')) continue;
+        }
+
+        newItems.push(c);
     }
     data.items = newItems;
     return data;
@@ -206,7 +263,7 @@ function removeSearch(data) {
     let newItems = [];
     for (let item of data.items) {
         if (item.category === 'feed') {
-            if (!isAd(item.data)) newItems.push(item);
+            if (!isAd(item.data)) newItems.push(cleanStatus(item));
         } else {
             if (!checkSearchWindow(item)) newItems.push(item);
         }
@@ -221,27 +278,28 @@ function removeMsgAd(data) {
     return data;
 }
 
-function removePage(data) {
-    removeCards(data);
-    if (mainConfig.removePinedTrending && data.cards && data.cards.length > 0 && data.cards[0].card_group) {
-        data.cards[0].card_group = data.cards[0].card_group.filter(c => !c.itemid.includes("t:51"));
-    }
-    return data;
-}
-
+// 增强的热搜处理 (Cards类型)
 function removeCards(data) {
     if (!data.cards) return;
     let newCards = [];
     for (const card of data.cards) {
         let cardGroup = card.card_group;
         if (cardGroup && cardGroup.length > 0) {
-            let newGroup = cardGroup.filter(group => group.card_type !== 118);
+            // 过滤 card_group 内的广告 (类型 118 或 含有 promotion)
+            let newGroup = cardGroup.filter(group => {
+                if (group.card_type === 118) return false;
+                if (group.promotion || group.itemid?.includes("is_ad_pos")) return false;
+                return true;
+            });
             card.card_group = newGroup;
             newCards.push(card);
         } else {
+            // 过滤卡片本身
             if ([9, 165].indexOf(card.card_type) > -1) {
                 if (!isAd(card.mblog)) newCards.push(card);
             } else {
+                 // 移除 banner 广告
+                if (card.itemid && card.itemid.includes("banner")) continue;
                 newCards.push(card);
             }
         }
@@ -288,15 +346,15 @@ function removeComments(data) {
 }
 function containerHandler(data) {
     if (mainConfig.removeInterestFriendInTopic && data.card_type_name === '超话里的好友') data.card_group = [];
-    if (mainConfig.removeInterestTopic && data.itemid) {
+    if (mainConfig。removeInterestTopic && data。itemid) {
         if (data.itemid.indexOf('infeed_may_interest_in') > -1 || data.itemid.indexOf('infeed_friends_recommend') > -1) data.card_group = [];
     }
 }
 function userHandler(data) {
     data = removeMain(data);
     if (!mainConfig.removeInterestUser || !data.items) return data;
-    data.items = data.items.filter(item => {
-        if (item.category === 'group') {
+    data。items = data。items。filter(item => {
+        if (item。category === 'group') {
              try { if (item.items[0]['data']['desc'] === '可能感兴趣的人') return false; } catch (e) {}
         }
         return true;
@@ -304,16 +362,16 @@ function userHandler(data) {
     return data;
 }
 function nextVideoHandler(data) {
-    if (mainConfig.removeNextVideo) { data.statuses = []; data.tab_list = []; }
+    if (mainConfig。removeNextVideo) { data。statuses = []; data。tab_list = []; }
 }
 function removeVideoRemind(data) {
-    data.bubble_dismiss_time = 0; data.exist_remind = false; data.image_dismiss_time = 0;
-    data.image = ''; data.tag_image_english = ''; data.tag_image_english_dark = ''; data.tag_image_normal = ''; data.tag_image_normal_dark = '';
+    data。bubble_dismiss_time = 0; data。exist_remind = false; data。image_dismiss_time = 0;
+    data。image = ''; data。tag_image_english = ''; data。tag_image_english_dark = ''; data。tag_image_normal = ''; data。tag_image_normal_dark = '';
 }
 function itemExtendHandler(data) {
     if ((mainConfig.removeRelate || mainConfig.removeGood) && data.trend?.titles) {
         let title = data.trend.titles.title;
-        if ((mainConfig.removeRelate && title === '相关推荐') || (mainConfig.removeGood && title === '博主好物种草')) delete data.trend;
+        if ((mainConfig。removeRelate && title === '相关推荐') || (mainConfig.removeGood && title === '博主好物种草')) delete data.trend;
     }
     if (mainConfig.removeFollow) data.follow_data = null;
     if (mainConfig.removeRewardItem) data.reward_info = null;
@@ -333,11 +391,9 @@ function itemExtendHandler(data) {
     }
 }
 
-// 极其精简的 Env 类，仅保留 Quantumult X 所需部分
 function Env(t) {
     this.name = t;
     this.logs = [];
-    this.isMute = false;
     this.log = (...t) => { if(mainConfig.isDebug) console.log(t.join("\n")); };
     this.done = (t = {}) => { $done(t); };
 }
