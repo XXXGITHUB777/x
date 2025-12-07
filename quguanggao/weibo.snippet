@@ -1,9 +1,5 @@
 
-
-#############################################
-# 1. 域名拦截 (最省电的层级)
-# 直接拒绝连接，不消耗脚本引擎资源
-#############################################
+# 1. 域名层级拦截 (最省电)
 host-suffix, fastimage.uve.weibo.com, reject
 host-suffix, adimg.vue.weibo.com, reject
 host-suffix, zymo.mps.weibo.com, reject
@@ -15,53 +11,31 @@ host-suffix, gw6.push.mcp.weibo.cn, reject
 host-suffix, game.weibo.cn, reject
 host-suffix, adimg.uve.weibo.com, reject
 host-suffix, game.weibo.com, reject
-host-suffix, ads.viber.com, reject
-host-suffix, ads-d.viber.com, reject
-host-suffix, ads.aws.viber.com, reject
 host-suffix, alitui.weibo.com, reject
-host-suffix, dp.im.weibo.cn, reject
 host-suffix, biz.weibo.com.cn, reject
 host-suffix, biz.weibo.com, reject
-host-suffix, click.uve.weibo.com, reject
 host-suffix, wax.weibo.com, reject
-host-suffix, wbapp.uve.weibo.com, reject
 host-suffix, widget.weibo.com, reject
-host-suffix, dsp.edm.weibo.cn, reject
-host-suffix, alitui.weibo.com.cn, reject
-host-suffix, tui.weibo.com, reject
-host-suffix, wax.weibo.com.cn, reject
 host-suffix, ad.weibo.com, reject
 host, bootpreload.uve.weibo.com, reject
 host, bootrealtime.uve.weibo.com, reject
 host, ad.weibo.cn, reject
 
-#############################################
-# 2. 简单接口拦截 (reject-dict)
-# 返回空JSON，防止客户端报错重试，比运行JS省电
-#############################################
-# 兴趣点、热点、红点提示
+# 2. 简单接口 Reject (减少脚本运行)
 ^https:\/\/m?api\.weibo\.c(n|om)\/2\/!\/huati\/discovery_home_bottom_channels reject-dict
 ^https:\/\/m?api\.weibo\.c(n|om)\/2\/!\/chaohua\/discovery\/home_bottom\/switch reject-dict
 ^https:\/\/m?api\.weibo\.c(n|om)\/2\/!\/was\/finder\/searchbarchange reject-dict
 ^https:\/\/m?api\.weibo\.c(n|om)\/2\/push\/info reject-dict
 ^https:\/\/m?api\.weibo\.c(n|om)\/\d/push/daily reject-dict
-^https?:\/\/m?api\.weibo\.c(n|om)\/2\/!\/huati\/discovery_home_bottom_getdotinfo reject
-# 各种日志上报、预加载
 ^https?:\/\/m?api\.weibo\.c(n|om)\/2\/(push\/active|client\/addlog_batch|ad\/preload) reject-dict
-# 国际版开屏/热搜
-^https?:\/\/weibointl\.api\.weibo\.cn\/portal\.php\?a=(hot_search_users|get_coopen_ads|get_searching_info) reject-dict
-^https?:\/\/api\.weibo\.cn\/\d\/ad\/weibointl reject-dict
-# 开屏SDK
-^https?:\/\/sdkapp\.uve\.weibo\.com\/interface\/sdk\/(get-lbs-cell-info\.php|sdkconfig\.php|sdkad\.php) reject-dict
-# 绿洲诱导
-^https:\/\/weibointl\.api\.weibo\.cn\/portal\.php\?a=treehole&auth= reject-dict
+# 奥运/活动横幅
+^https:\/\/datumogs\.sports\.weibo\.c(n|om)\/wb\/api\/medal\/all reject-dict
 
-#############################################
-# 3. 核心去广告脚本 (只处理必要的时间流)
-# 仅保留 weibo_main.js，移除 ads.js 和 keywos.js
-#############################################
+# 3. 核心融合脚本 (所有复杂去广告走这一个脚本)
+# 涵盖：首页流、热搜、搜索、超话、详情页、评论、个人主页
+^https?:\/\/m?api\.weibo\.c(n|om)/2/(cardlist|searchall|page|flowpage|messageflow|statuses/(unread_)?friends(/|_)timeline|groups/timeline|statuses/(container_timeline|container_timeline_hot|unread_hot_timeline|extend|video_mixtimeline|repost_timeline|container_timeline_topic|container_timeline_topicpage)|profile/(me|container_timeline)|video/(community_tab|remind_info|tiny_stream_video_list)|checkin/show|(\!/)?live/media_homelist|comments/(build_comments|mix_comments)|container/get_item|search/(finder|container_timeline|container_discover)) url script-response-body https://raw.githubusercontent.com/fmz200/wool_scripts/main/Scripts/weibo/weibo_main.js
 
-# 微博国内版 - 核心时间流/搜索/个人页/评论
-# 合并了原本分散在多个脚本中的正则，统一处理
-^https?:\/\/m?api\.weibo\.c(n|om)/2/(cardlist|searchall|page|messageflow|statuses/(unread_)?friends(/|_)timeline|groups/timeline|statuses/(container_timeline|container_timeline_hot|unread_hot_timeline|extend|video_mixtimeline|repost_timeline)|profile/(me|container_timeline)|video/(community_tab|remind_info|tiny_stream_video_list)|checkin/show|(\!/)?live/media_homelist|comments/build_comments|container/get_item) url script-response-body https://raw.githubusercontent.com/XXXGITHUB777/x/refs/heads/main/quguanggao/weibo_main.js
+# 移除开屏广告脚本 (保留Cherish的逻辑)
+^https?:\/\/(sdk|wb)app\.uve\.weibo\.com(/interface/sdk/sdkad.php|/wbapplua/wbpullad.lua) url script-response-body https://raw.githubusercontent.com/zmqcherish/proxy-script/main/weibo_launch.js
+
 hostname = *.weibo.cn, *.weibo.com, weibo.com
