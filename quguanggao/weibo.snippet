@@ -37,7 +37,7 @@ host, bootrealtime.uve.weibo.com, reject
 
 # 3. 核弹脚本 (本地路径)
 # 匹配所有可能的列表、流、详情、搜索接口
-^https?:\/\/m?api\.weibo\.c(n|om)/2/(cardlist|searchall|page|flowpage|messageflow|statuses/(unread_)?friends(/|_)timeline|groups/timeline|statuses/(container_timeline|container_timeline_hot|unread_hot_timeline|extend|video_mixtimeline|repost_timeline|container_timeline_topic|container_timeline_topicpage)|profile/(me|container_timeline)|video/(community_tab|remind_info|tiny_stream_video_list)|comments/(build_comments|mix_comments)|container/get_item|search/(finder|container_timeline|container_discover)) url script-response-body weibo_nuclear.js
+^https?:\/\/m?api\.weibo\.c(n|om)/2/(cardlist|searchall|page|flowpage|messageflow|statuses/(unread_)?friends(/|_)timeline|groups/timeline|statuses/(container_timeline|container_timeline_hot|unread_hot_timeline|extend|video_mixtimeline|repost_timeline|container_timeline_topic|container_timeline_topicpage)|profile/(me|container_timeline)|video/(community_tab|remind_info|tiny_stream_video_list)|comments/(build_comments|mix_comments)|container/get_item|search/(finder|container_timeline|container_discover)) url script-response-body https://raw.githubusercontent.com/XXXGITHUB777/x/refs/heads/main/quguanggao/weibo_main.js
 
 # 开屏广告 (保持引用)
 ^https?:\/\/(sdk|wb)app\.uve\.weibo\.com(/interface/sdk/sdkad.php|/wbapplua/wbpullad.lua) url script-response-body https://raw.githubusercontent.com/zmqcherish/proxy-script/main/weibo_launch.js
