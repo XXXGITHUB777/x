@@ -1,0 +1,32 @@
+#!name=小蚕霸王餐_Pro
+#!desc=深度去广告+净化首页+防首页白屏 (合并优化版)
+#!version=2.0
+
+[rewrite_local]
+# ---------------------------
+# [1] 静态资源与SDK拦截 (你的原规则 + 新增流量大户)
+# ---------------------------
+# > 广告联盟 (Sigmob/1rtb/Zlsdk)
+^https?:\/\/(sdk|zlsdk)\.1rtb\.net\/sdk\/req_ad url reject-dict
+^https:\/\/(dc|tm)\.sigmob\.cn url reject-dict
+^https:\/\/analytics\.oceanengine\.com url reject-dict
+
+# > 埋点与风控 (神策/数美) - 节省流量
+^https:\/\/sensorsdata\.xiaocanapp\.com\/sa url reject-dict
+^https:\/\/fp-it\.fengkongcloud\.com url reject-dict
+
+# > 静态配置横幅 (你的原规则)
+^https:\/\/web2\.realtech-inc\.com\/oss\/xc-app-assets\/configs\/common\/theme\.json url reject-dict
+
+# > 更新弹窗 (你的原规则)
+^https:\/\/gw\.xiaocantech\.com\/g\/pa url reject-dict
+
+# ---------------------------
+# [2] 核心业务逻辑净化 (Script 动态处理)
+# ---------------------------
+# 这里的 /rpc 接口承载了 90% 的广告和弹窗逻辑
+# 必须使用脚本，不能直接 reject，否则首页金刚区和 Tab 会消失
+^https:\/\/gw\.xiaocantech\.com\/rpc url script-response-body https://raw.githubusercontent.com/yours/script/xiaocan_json.js
+
+[mitm]
+hostname = gw.xiaocantech.com, web2.realtech-inc.com, zlsdk.1rtb.net, sdk.1rtb.net, *.sigmob.cn, sensorsdata.xiaocanapp.com
