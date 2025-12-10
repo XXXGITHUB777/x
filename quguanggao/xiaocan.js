@@ -1,63 +1,74 @@
 /*
- * 小蚕霸王餐 - 防误杀保活版
- * 仅去除：全屏弹窗、新用户弹窗、列表流推广
- * 保留：首页金刚区(业务入口)、顶部Banner(活动入口)
+ * 小蚕 - 轻量去红包弹窗版
+ * 目标：只处理首页红包弹窗相关资源，避免误伤其它模块
  */
 
-var body = $response.body;
-var url = $request.url;
-// 兼容各种写法获取 methodname
-var method = $request.headers["methodname"] || $request.headers["Methodname"] || $request.headers["MethodName"] || "";
+let body = $response.body;
 
-if (body) {
-    try {
-        var obj = JSON.parse(body);
+try {
+  const headers = $request.headers || {};
+  const method =
+    headers["methodname"] ||
+    headers["Methodname"] ||
+    headers["MethodName"] ||
+    "";
 
-        // [场景1] 首页布局配置 (BatchMatchPlacement)
-        if (method === "PlacementMatchService.BatchMatchPlacement") {
-            if (obj.resources && obj.resources.length > 0) {
-                // 🚫 仅删除这几个纯广告/干扰模块
-                const blockSlugs = [
-                    "OPS_POPUP"，      // 首页全屏运营弹窗 (必删)
-                    "POPUP_NEW",      // 新人弹窗 (必删)
-                    "MESSAGE_PLACE"，  // 信息流中的推广条目 (必删)
-                    "AD_FLOAT"        // 悬浮窗广告 (必删)
-                ];
-                
-                // ⚠️ 注意：XC_JG (金刚区) 和 BANNER (轮播图) 不在删除列表中
-                // 因为它们包含 "美团红包"、"霸王餐" 等核心入口，删了就"没东西"了。
+  // 只处理首页资源混合接口
+  if (method === "PlacementMatchService.BatchMatchPlacement") {
+    let obj = JSON.parse(body);
 
-                obj.resources = obj.resources.filter(item => {
-                    return !blockSlugs.includes(item.resource_slug);
-                });
+    if (obj && Array.isArray(obj.resources)) {
+      for (const item of obj.resources) {
+        if (!item || !item.resource_slug) continue;
+
+        // 只针对红包弹窗资源
+        if (item.resource_slug === "OPS_POPUP" || item.resource_slug === "POPUP_NEW") {
+          // 尽量不删除整个对象，只把关键字段掏空
+
+          // 常见结构一：数据在 biz_data 里
+          if (item.biz_data && typeof item.biz_data === "object") {
+            if ("operation_popup_img" 在 item.biz_data) {
+              item。biz_data.operation_popup_img = "";
             }
-        }
-
-        // [场景2] 各种弹窗检测接口 -> 强制返回不显示
-        if (method.includes("Popup") || method.includes("IsNewUser")) {
-            // 这是一个通用结构处理，防止 App 傻等
-            if (obj.activity) {
-                obj.activity.show = false;
+            if ("pop_up_img" in item.biz_data) {
+              item.biz_data.pop_up_img = "";
             }
-            if (obj.data) { // 有些接口数据在 data 里
-                obj.data = null; 
+            if ("schema_url" in item.biz_data) {
+              item.biz_data.schema_url = "";
             }
-            obj.show = false; // 最外层开关
-        }
+            if ("jump_url" in item.biz_data) {
+              item.biz_data.jump_url = "";
+            }
+          }
 
-        // [场景3] 纯广告 Banner 列表
-        // 如果你觉得这里也被杀太狠，可以注释掉下面这段
-        if (method === "SilkwormService.GetBannerList") {
-            // 返回标准的空列表结构，比 {} 更安全
-            obj = { "status": { "code": 0 }, "list": [] }; 
-        }
+          // 常见结构二：字段直接挂在资源对象上
+          if ("operation_popup_img" in item) {
+            item.operation_popup_img = "";
+          }
+          if ("pop_up_img" in item) {
+            item.pop_up_img = "";
+          }
+          if ("schema_url" in item) {
+            item.schema_url = "";
+          }
+          if ("jump_url" in item) {
+            item.jump_url = "";
+          }
 
-        $done({ body: JSON.stringify(obj) });
-    } catch (e) {
-        // 如果解析出错，直接返回原始内容，保证 App 不崩
-        console.log("小蚕脚本错误: " + e);
-        $done({});
+          // 有些接口会有 show / is_show / enable 之类的标志位
+          if ("show" in item) item.show = false;
+          if ("is_show" in item) item.is_show = false;
+          if ("enable" in item) item.enable = false;
+        }
+      }
     }
-} else {
-    $done({});
+
+    body = JSON.stringify(obj);
+  }
+
+} catch (e) {
+  console.log("xiaocan_lite_popup error: " + e);
 }
+
+// 不管有没有改动，都正常返回 body
+$done({ body });
