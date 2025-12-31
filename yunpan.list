@@ -1,0 +1,105 @@
+# ==================================
+# 网盘分流规则集合
+# 包含：115, 阿里云盘, 百度, 蓝奏, 文叔叔, 123云盘, 夸克等
+# ==================================
+
+# 115网盘
+host-suffix, 115.com, direct
+host-suffix, 115cdn.com, direct
+host-suffix, 115cdn.net, direct
+host-suffix, 115cloud.cn, direct
+host-suffix, 115cloud.com, direct
+host-suffix, 115cloud.net, direct
+host-suffix, 115img.com, direct
+host-suffix, 115meta.com, direct
+host-suffix, 115vod.com, direct
+host-suffix, 116cd.cn, direct
+host-suffix, 116cd.com, direct
+host-suffix, 116cd.net, direct
+host-suffix, anxia.com, direct
+host-suffix, sq.cc, direct
+
+# 阿里云盘
+host-suffix, alicloudccp.com, direct
+host-suffix, alipan.com, direct
+host-suffix, aliyundrive.cloud, direct
+host-suffix, aliyundrive.com, direct
+host-suffix, aliyundrive.net, direct
+host-suffix, yunpan.aliyun.com, direct
+
+# 奶牛快传
+host-suffix, c-t.work, direct
+host-suffix, cowcs.com, direct
+host-suffix, cowtransfer.com, direct
+
+# 蓝奏云
+host-suffix, baidupan.com, direct
+host-suffix, ilanzou.com, direct
+host-suffix, lanosso.com, direct
+host-suffix, lanrar.com, direct
+host-suffix, lanzou.com, direct
+host-suffix, lanzoub.com, direct
+host-suffix, lanzouc.com, direct
+host-suffix, lanzoue.com, direct
+host-suffix, lanzouf.com, direct
+host-suffix, lanzoug.com, direct
+host-suffix, lanzouh.com, direct
+host-suffix, lanzoui.com, direct
+host-suffix, lanzouj.com, direct
+host-suffix, lanzouk.com, direct
+host-suffix, lanzoul.com, direct
+host-suffix, lanzoum.com, direct
+host-suffix, lanzouo.com, direct
+host-suffix, lanzoup.com, direct
+host-suffix, lanzouq.com, direct
+host-suffix, lanzous.com, direct
+host-suffix, lanzout.com, direct
+host-suffix, lanzouu.com, direct
+host-suffix, lanzouv.com, direct
+host-suffix, lanzouw.com, direct
+host-suffix, lanzoux.com, direct
+host-suffix, lanzouy.com, direct
+host-suffix, lanzov.com, direct
+host-suffix, woozooo.com, direct
+
+# 文叔叔
+host-suffix, wenshushu.cn, direct
+host-suffix, wenshushu.com, direct
+host-suffix, wenxiaozhan.cn, direct
+host-suffix, wenxiaozhan.com, direct
+host-suffix, wenxiaozhan.net, direct
+host-suffix, wss.cc, direct
+host-suffix, wss.email, direct
+host-suffix, wss.ink, direct
+host-suffix, wss.pet, direct
+host-suffix, wss.show, direct
+host-suffix, wss.zone, direct
+host-suffix, wss1.cn, direct
+
+# 123云盘
+host-suffix, 123pan.cn, direct
+host-suffix, 123pan.com, direct
+host-suffix, 123panpay.com, direct
+host-suffix, 123957.com, direct
+host-suffix, 123912.com, direct
+host-suffix, 123860.com, direct
+host-suffix, 123842.com, direct
+host-suffix, 123641.com, direct
+host-suffix, 123624.com, direct
+host-suffix, 123294.com, direct
+host-suffix, 123254.com, direct
+host-suffix, 123245.com, direct
+host-suffix, 123952.com, direct
+
+# 其他常见网盘
+host-suffix, cloud.189.cn, direct
+host-suffix, ctfile.com, direct
+host-suffix, feimaoyun.com, direct
+host-suffix, filez.com, direct
+host-suffix, jianguoyun.com, direct
+host-suffix, pan.baidu.com, direct
+host-suffix, pan.quark.cn, direct
+host-suffix, pan.xunlei.com, direct
+host-suffix, weiyun.com, direct
+host-suffix, yun.139.com, direct
+host-suffix, yunpan.com, direct
