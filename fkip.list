@@ -1,10 +1,11 @@
 # ==========================================
 # 🎯 国内应用 IP 归属地修改 (Anti-IP-Attribution)
-# 格式: Quantumult X Native (HOST/HOST-SUFFIX)
-# 策略组: 🇨🇳 (请确保你创建了这个策略组)
+# 策略组名称: 🇨🇳 (请务必在 QX 策略组中创建名为 🇨🇳 的组，指向香港/台湾节点)
+# 逻辑: 核心 API 走代理 (🇨🇳)，CDN 静态资源走直连 (DIRECT)
+# 参考源: SunsetMkt/anti-ip-attribution & 你的 Clash 配置
 # ==========================================
 
-# ================= 1. 阻断 HTTPDNS (防止IP泄露) =================
+# ================= 1. 阻断 HTTPDNS (防止真实 IP 泄露) =================
 # Bilibili HTTPDNS
 HOST, httpdns.bilivideo.com, REJECT
 IP-CIDR, 47.101.175.206/32, REJECT
@@ -30,7 +31,7 @@ IP6-CIDR, 2402:4e00:1200:ed00:0:9089:6dac:96b6/40, REJECT
 IP-CIDR, 119.29.29.98/32, REJECT
 IP-CIDR, 120.53.130.158/32, REJECT
 
-# ================= 2. CDN 静态资源直连 (确保不卡顿) =================
+# ================= 2. CDN 静态资源直连 (必须在前，保速度) =================
 # --- 哔哩哔哩 CDN ---
 HOST-SUFFIX, bilivideo.com, DIRECT
 HOST-SUFFIX, akamaized.net, DIRECT
@@ -57,12 +58,21 @@ HOST-SUFFIX, wbimg.cn, DIRECT
 HOST-SUFFIX, wbimg.com, DIRECT
 HOST-SUFFIX, sinaimg.cn, DIRECT
 
-# --- 腾讯/音乐/其他 CDN ---
+# --- 腾讯/QQ音乐 CDN ---
 HOST, y.qq.com, DIRECT
+HOST, aqqmusic.tc.qq.com, DIRECT
+HOST-SUFFIX, music.tc.qq.com, DIRECT
+HOST-SUFFIX, stream.qqmusic.qq.com, DIRECT
+
+# --- Soul CDN ---
 HOST, china-img.soulapp.cn, DIRECT
 HOST, img.soulapp.cn, DIRECT
+
+# --- 网易/Lofter CDN ---
 HOST-SUFFIX, lf127.net, DIRECT
-# 斗鱼 CDN
+HOST-SUFFIX, 126.net, DIRECT
+
+# --- 斗鱼 CDN ---
 HOST-SUFFIX, hls3-akm.douyucdn.cn, DIRECT
 HOST-SUFFIX, hlsa-akm.douyucdn.cn, DIRECT
 HOST-SUFFIX, hls1a-akm.douyucdn.cn, DIRECT
@@ -77,13 +87,13 @@ HOST-SUFFIX, wsproxy.douyu.com, DIRECT
 HOST-SUFFIX, danmuproxy.douyu.com, DIRECT
 HOST-SUFFIX, img.douyucdn.cn, DIRECT
 
-# ================= 3. API 代理 (修改 IP 归属地 -> 🇨🇳) =================
+# ================= 3. API 代理 (修改 IP -> 🇨🇳) =================
 
 # --- 哔哩哔哩 API ---
 HOST-SUFFIX, biliapi.net, 🇨🇳
 HOST-SUFFIX, biliapi.com, 🇨🇳
 HOST-SUFFIX, bilibili.com, 🇨🇳
-# B站直播定位
+# B站直播定位 IP
 IP-CIDR, 203.107.1.0/24, 🇨🇳
 
 # --- 微博 API ---
@@ -106,11 +116,6 @@ HOST, httpdns.baidu.com, 🇨🇳
 HOST, httpdns.baidubce.com, 🇨🇳
 IP-CIDR, 180.76.76.0/24, 🇨🇳
 
-# --- 微信 (部分) ---
-HOST, szshort.weixin.qq.com, 🇨🇳
-HOST, szextshort.weixin.qq.com, 🇨🇳
-HOST, szminorshort.weixin.qq.com, 🇨🇳
-HOST, mp.weixin.qq.com, 🇨🇳
 
 # --- 知乎 API ---
 HOST-SUFFIX, zhihu.com, 🇨🇳
@@ -124,7 +129,8 @@ HOST-SUFFIX, toutiaoapi.com, 🇨🇳
 HOST-SUFFIX, pstatp.com, 🇨🇳
 HOST, sso.douyin.com, 🇨🇳
 HOST, www.douyin.com, 🇨🇳
-# 抖音关键词匹配
+HOST-SUFFIX, ixigua.com, 🇨🇳
+# 抖音关键词
 HOST-KEYWORD, core-c-lq, 🇨🇳
 HOST-KEYWORD, core-lq, 🇨🇳
 HOST-KEYWORD, normal-c-lq, 🇨🇳
@@ -221,40 +227,74 @@ IP-CIDR, 150.109.222.99/32, 🇨🇳
 IP-CIDR, 150.109.222.110/32, 🇨🇳
 IP-CIDR, 203.205.220.62/32, 🇨🇳
 
-# --- 其他社区 API ---
-HOST, keylol.com, 🇨🇳
-HOST-SUFFIX, ixigua.com, 🇨🇳
+# --- 酷安 (Coolapk) ---
+HOST, api.coolapk.com, 🇨🇳
+HOST, api2.coolapk.com, 🇨🇳
+
+# --- 虎扑 (Hupu) ---
+HOST, bbs.mobileapi.hupu.com, 🇨🇳
+
+# --- NGA (艾泽拉斯国家地理解放战线) ---
+HOST, ngabbs.com, 🇨🇳
+HOST, bbs.nga.cn, 🇨🇳
+HOST, nga.178.com, 🇨🇳
+
+# --- 起点中文网 (Qidian) ---
+HOST, druidv6.if.qidian.com, 🇨🇳
+HOST, ptlogin6.qidian.com, 🇨🇳
+
+# --- Soul ---
+HOST-SUFFIX, soulapp.cn, 🇨🇳
+
+# --- 米游社 (Miyoushe) ---
+HOST, bbs-api.mihoyo.com, 🇨🇳
+HOST, bbs-api.miyoushe.com, 🇨🇳
+
+# --- 小黑盒 (Xiaoheihe) ---
+HOST, api.xiaoheihe.cn, 🇨🇳
+
+# --- 网易大神 (Netease God) ---
+HOST, god.gameyw.netease.com, 🇨🇳
+
+# --- 完美世界电竞 (Perfect World) ---
+HOST, api.wmpvp.com, 🇨🇳
+
+# --- 懂球帝 (Dongqiudi) ---
+HOST-SUFFIX, dongqiudi.com, 🇨🇳
+
+# --- IT之家 (ITHOME) ---
+HOST, cmt.ithome.com, 🇨🇳
+
+# --- 文叔叔 ---
 HOST, www.wenshushu.cn, 🇨🇳
+
+# --- 其乐论坛 ---
+HOST, keylol.com, 🇨🇳
+
+# --- 豆瓣 (Douban) ---
 HOST, frodo.douban.com, 🇨🇳
 HOST, www.douban.com, 🇨🇳
 IP-CIDR, 49.233.242.15/32, 🇨🇳
 IP-CIDR, 81.70.124.99/32, 🇨🇳
 IP-CIDR, 81.70.125.19/32, 🇨🇳
 IP-CIDR, 140.143.177.206/32, 🇨🇳
-HOST, api.coolapk.com, 🇨🇳
-HOST, api2.coolapk.com, 🇨🇳
-HOST, api.taptapdada.com, 🇨🇳
-HOST, god.gameyw.netease.com, 🇨🇳
-HOST-SUFFIX, huya.com, 🇨🇳
-HOST-SUFFIX, dongqiudi.com, 🇨🇳
-HOST, ngabbs.com, 🇨🇳
-HOST, bbs.nga.cn, 🇨🇳
-HOST, nga.178.com, 🇨🇳
-HOST, api.vip.miui.com, 🇨🇳
-HOST, bbs-api.mihoyo.com, 🇨🇳
-HOST, bbs-api.miyoushe.com, 🇨🇳
-HOST, api.xiaoheihe.cn, 🇨🇳
-HOST, y.qq.com, 🇨🇳
-HOST-SUFFIX, y.qq.com, 🇨🇳
-HOST, zonai.skland.com, 🇨🇳
-HOST-SUFFIX, soulapp.cn, 🇨🇳
-HOST, druidv6.if.qidian.com, 🇨🇳
-HOST, ptlogin6.qidian.com, 🇨🇳
-HOST, api.wmpvp.com, 🇨🇳
-HOST, bbs.mobileapi.hupu.com, 🇨🇳
-HOST, cmt.ithome.com, 🇨🇳
 
-# --- 网易云 API ---
+# --- TapTap ---
+HOST, api.taptapdada.com, 🇨🇳
+
+# --- 小米社区 ---
+HOST, api.vip.miui.com, 🇨🇳
+
+# --- 虎牙 ---
+HOST-SUFFIX, huya.com, 🇨🇳
+
+# --- QQ音乐/腾讯系 IP ---
+HOST-SUFFIX, y.qq.com, 🇨🇳
+
+# --- 森空岛 ---
+HOST, zonai.skland.com, 🇨🇳
+
+# --- 网易云音乐 API (包含大量 IP 段) ---
 HOST-SUFFIX, music.163.com, 🇨🇳
 HOST, nstool.netease.com, 🇨🇳
 HOST, wanproxy.127.net, 🇨🇳
