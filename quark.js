@@ -7,21 +7,20 @@
 ==================== QX 配置 ====================
 
 [rewrite_local]
-^https?:\/\/drive-m\.quark\.cn\/1\/clouddrive\/capacity\/growth\/info url script-request-header https://raw.githubusercontent.com/你的用户名/你的仓库/main/quark_checkin.js
-^https?:\/\/drive-m\.quark\.cn\/1\/clouddrive\/capacity\/growth\/sign url script-request-header https://raw.githubusercontent.com/你的用户名/你的仓库/main/quark_checkin.js
+^https?:\/\/drive-m\.quark\.cn\/1\/clouddrive\/capacity\/growth\/info url script-request-header https://raw.githubusercontent.com/XXXGITHUB777/x/refs/heads/main/quark.js
+^https?:\/\/drive-m\.quark\.cn\/1\/clouddrive\/capacity\/growth\/sign url script-request-header https://raw.githubusercontent.com/XXXGITHUB777/x/refs/heads/main/quark.js
 
 [mitm]
 hostname = drive-m.quark.cn, coral2.quark.cn
 
 [task_local]
-0 9 * * * https://raw.githubusercontent.com/你的用户名/你的仓库/main/quark_checkin.js tag=夸克网盘签到, enabled=true
+0 9 * * * https://raw.githubusercontent.com/XXXGITHUB777/x/refs/heads/main/quark.js tag=夸克网盘签到, enabled=true
 
 【使用方法】
-1. 把上面链接替换成你 GitHub 的 raw 链接
-2. 开启 MitM 和重写
-3. 打开夸克网盘 APP → 我的 → 签到页面
-4. 收到抓包成功通知就 OK，之后每天自动签到
-5. 多账号：每个账号分别打开一次 APP 即可
+1. 开启 MitM 和重写
+2. 打开夸克网盘 APP → 我的 → 签到页面
+3. 收到抓包成功通知就 OK，之后每天自动签到
+4. 多账号：每个账号分别打开一次 APP 即可
 
 ============================================================
 */
