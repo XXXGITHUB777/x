@@ -11,10 +11,10 @@
  *   hostname = api.m.jd.com
  *
  *   [rewrite_local]
- *   ^https:\/\/api\.m\.jd\.com\/client\.action\?functionId=getCommentOfficerTrialHome url script-response-body https://raw.githubusercontent.com/你/仓库名/main/jd_trial.js
+ *   ^https:\/\/api\.m\.jd\.com\/client\.action\?functionId=getCommentOfficerTrialHome url script-response-body https://raw.githubusercontent.com/XXXGITHUB777/x/refs/heads/main/jdsy.js
  *
  *   [task_local]
- *   */30 * * * * tag=京东试用监控, script-path=https://raw.githubusercontent.com/你/仓库名/main/jd_trial.js, enabled=true
+ *   */30 * * * * tag=京东试用监控, script-path=https://raw.githubusercontent.com/XXXGITHUB777/x/refs/heads/main/jdsy.js, enabled=true
  */
 
 (function () {
