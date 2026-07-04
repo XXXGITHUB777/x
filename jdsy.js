@@ -1,3 +1,5 @@
+/*
+============================================================
 京东试用监控 - Quantumult X 版
 功能：自动抓包 + 自动比对 + 自动通知 一体化
 一个脚本文件搞定，上传 GitHub 直接远程引用
@@ -12,35 +14,32 @@ hostname = api.m.jd.com
 
 [task_local]
 0,30 * * * * https://raw.githubusercontent.com/XXXGITHUB777/x/refs/heads/main/jdsy.js, tag=JD试用监控, enable=true
-event network-changed script-path=https://raw.githubusercontent.com/XXXGITHUB777/x/refs/heads/main/jdsy.js, tag=JD试用网络触发, enable=true
 
 【使用方法】
 1. 开启 MitM 和重写
 2. 打开京东 APP → 评价中心 → 试用列表
-3. 收到抓包成功通知后，脚本即可每半小时自动监控
+3. 收到初始化成功通知后，脚本即可每半小时自动监控
 ============================================================
+*/
 
 const K_REQ = 'jdsy_req_v7';
 const K_SNAP = 'jdsy_snap_v7';
 const K_FAIL = 'jdsy_fail_v7';
 
-// ==================== 环境检测 ====================
 const isQX = typeof $task !== 'undefined';
 const isMitm = typeof $request !== 'undefined' && typeof $response !== 'undefined';
 
 function notify(title, subtitle, message) {
+    console.log(`[${title}] ${subtitle} - ${message}`);
     if (isQX) $notify(title, subtitle, message);
-    else console.log(`[${title}] ${subtitle}\n${message}`);
 }
 
 function getEnv(key) {
-    if (isQX && typeof $prefs !== 'undefined') return $prefs.valueForKey(key);
     if (typeof $persistentStore !== 'undefined') return $persistentStore.read(key);
     return null;
 }
 
 function setEnv(value, key) {
-    if (isQX && typeof $prefs !== 'undefined') return $prefs.setValueForKey(value, key);
     if (typeof $persistentStore !== 'undefined') return $persistentStore.write(value, key);
     return false;
 }
@@ -49,8 +48,6 @@ function done(value = {}) {
     if (typeof $done !== 'undefined') $done(value);
 }
 
-// ==================== 核心逻辑 ====================
-
 if (isMitm) {
     runMitm();
 } else {
@@ -58,7 +55,6 @@ if (isMitm) {
 }
 
 function runMitm() {
-    // 存储完整请求供 cron 重放
     const reqData = {
         url: $request.url || '',
         method: $request.method || 'POST',
@@ -72,7 +68,6 @@ function runMitm() {
         const bodyObj = JSON.parse($response.body);
         processData(bodyObj, true);
     } catch (e) {
-        console.log("解析响应体失败: " + e);
         done();
     }
 }
@@ -115,7 +110,6 @@ function processData(data, isFromMitm) {
     const total = result.totalClaimableNum || 0;
     const acts = result.trialActivities || [];
 
-    // 售光静默
     if (total === 0 || acts.length === 0) {
         setEnv(JSON.stringify({ total: 0, items: [], ts: Date.now() }), K_SNAP);
         return done();
@@ -127,7 +121,6 @@ function processData(data, isFromMitm) {
         if (oldSnapStr) oldSnap = JSON.parse(oldSnapStr);
     } catch (e) {}
 
-    // 构建当前 key 集合：activityId + skuId
     let newItems = [];
     let newKeys = new Set();
     
@@ -139,7 +132,6 @@ function processData(data, isFromMitm) {
 
     let outMsgs = [];
 
-    // 1. 新上架
     newItems.forEach(({ key, act }) => {
         if (!oldSnap.items || oldSnap.items.indexOf(key) === -1) {
             const name = act.skuName || ("SKU:" + (act.skuId || act.activityId));
@@ -149,19 +141,16 @@ function processData(data, isFromMitm) {
         }
     });
 
-    // 2. 可申请总数增加
     if (total > oldSnap.total) {
         outMsgs.push("▶ 可申请 +" + (total - oldSnap.total) + "（" + oldSnap.total + "→" + total + "）");
     }
 
-    // 通知
     if (outMsgs.length > 0 && oldSnap.items && oldSnap.items.length > 0) {
         notify("京东试用 · 可申请 " + total + " 件", "", outMsgs.join("\n"));
     } else if (isFromMitm && oldSnap.items.length === 0) {
         notify("京东试用监控", "✅ 初始化成功", "已成功抓取参数，开始自动监控\n当前可申请 " + total + " 件");
     }
 
-    // 存储新快照
     const newSnap = {
         total: total,
         ts: Date.now(),
