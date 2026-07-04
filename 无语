@@ -1,0 +1,8 @@
+[rewrite_local]
+^https?:\/\/api\.m\.jd\.com\/(client\.action|api) url script-response-body https://raw.githubusercontent.com/XXXGITHUB777/x/refs/heads/main/jdsy.js
+
+[mitm]
+hostname = api.m.jd.com
+
+[task_local]
+0,30 * * * * https://raw.githubusercontent.com/XXXGITHUB777/x/refs/heads/main/jdsy.js, tag=JD试用监控, enable=true
