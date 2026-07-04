@@ -1,229 +1,149 @@
-/**********************************************
- * 京东试用监控 · 单脚本版 v3
- * 
- * 功能：每 30 分钟自动拉取试用列表，
- *       新增商品即时通知，售光不报。
- *
- * QX 配置：
- *   [mitm]
- *   hostname = api.m.jd.com
- *   
- *   [rewrite_local]
- *   ^https:\/\/api\.m\.jd\.com\/client\.action\?functionId=getCommentOfficerTrialHome url script-response-body https://raw.githubusercontent.com/XXXGITHUB777/x/refs/heads/main/jdsy.js
- *   
- *   [task_local]
- *   */30 * * * * tag=JD_TRIAL_MONITOR, script-path=https://raw.githubusercontent.com/XXXGITHUB777/x/refs/heads/main/jdsy.js, enabled=true
- **********************************************/
+/**
+ * @fileoverview 京东试用监控 (QX优化版)
+ * * [mitm]
+ * hostname = api.m.jd.com
+ * * [rewrite_local]
+ * ^https:\/\/api\.m\.jd\.com\/client\.action\?functionId=getCommentOfficerTrialHome url script-response-body https://raw.githubusercontent.com/XXXGITHUB777/x/refs/heads/main/jdsy.js
+ * * [task_local]
+ * */30 * * * * https://raw.githubusercontent.com/XXXGITHUB777/x/refs/heads/main/jdsy.js, tag=JD_Trial_Monitor, enable=true
+ * event network-changed script-path=https://raw.githubusercontent.com/XXXGITHUB777/x/refs/heads/main/jdsy.js, tag=JD_Trial_Net, enable=true
+ */
 
-(function () {
-  "use strict";
+!(async () => {
+    const K_REQ = "jd_trial_req";
+    const K_SNAP = "jd_trial_snapshot";
+    const K_FAIL = "jd_trial_fail";
 
-  const MATCH_URL = "functionId=getCommentOfficerTrialHome";
-  const API_URL = "https://api.m.jd.com/client.action?functionId=getCommentOfficerTrialHome";
+    const isMitm = typeof $request !== "undefined" && $request.url.indexOf("getCommentOfficerTrialHome") > -1;
 
-  // 持久化 key
-  const K = {
-    snap: "jdt_snap",
-    req: "jdt_req",
-    failJ: "jdt_fail",
-    needJ: "jdt_need",
-  };
-
-  // 全局变量（MITM 模式赋值，cron 模式 null）
-  let respBody = null;
-  let reqUrl = null;
-  let reqHeaders = null;
-  let reqBody = null;
-
-  const isMitm = typeof $response !== "undefined" && $request && ($request.url || "").indexOf(MATCH_URL) > -1;
-
-  if (isMitm) {
-    respBody = $response.body;
-    reqUrl = $request.url;
-    reqHeaders = $request.headers;
-    reqBody = $request.body;
-    runMitm();
-  } else {
-    runCron();
-  }
-
-  // ── 模式 A：MITM ────────────────────────────
-  function runMitm() {
-    const obj = safeJson(respBody);
-    if (!obj || !obj.result) return $done({});
-
-    const r = obj.result;
-    const total = r.totalClaimableNum || (r.trialBar && r.trialBar.claimableNum) || 0;
-    const acts = r.trialActivities || [];
-
-    // 存请求供 cron 使用
-    save(K.req, {
-      url: reqUrl,
-      method: "POST",
-      headers: reqHeaders,
-      body: reqBody,
-    });
-
-    // 清标志
-    write(K.failJ, "0");
-    write(K.needJ, "0");
-
-    const currSnap = buildSnap(total, acts);
-    const prev = load(K.snap);
-    const diff = diffSnap(prev, currSnap);
-
-    if (diff.length > 0) {
-      doNotify(currSnap.total, diff);
+    if (isMitm) {
+        handleMitm();
+    } else {
+        await handleCron();
     }
 
-    save(K.snap, currSnap);
-    console.log("[MITM] total=" + total + " items=" + currSnap.items.length + " diff=" + diff.length);
-    $done({});
-  }
+    // --- MITM 抓包逻辑 ---
+    function handleMitm() {
+        try {
+            // 保存请求参数供定时任务使用
+            const reqData = {
+                url: $request.url,
+                method: $request.method || "POST",
+                headers: $request.headers,
+                body: $request.body
+            };
+            $persistentStore.write(JSON.stringify(reqData), K_REQ);
+            $persistentStore.write("0", K_FAIL); // 重置失败次数
 
-  // ── 模式 B：cron ────────────────────────────
-  function runCron() {
-    const req = load(K.req);
-    if (!req) {
-      doNotifyP("京东试用", "初始化", "打开 App → 评价中心 → 试用列表，首次获取请求数据");
-      return $done({});
+            // 处理响应数据
+            const body = JSON.parse($response.body);
+            processData(body, true);
+        } catch (e) {
+            console.log("MITM处理异常: " + e);
+        } finally {
+            $done({}); // 释放请求
+        }
     }
 
-    $task.fetch(req).then(function (resp) {
-      const obj = safeJson(resp.body);
-      if (!obj || !obj.result) return expired();
+    // --- Cron 定时任务逻辑 ---
+    async function handleCron() {
+        const reqStr = $persistentStore.read(K_REQ);
+        if (!reqStr) {
+            $notification.post("京东试用监控", "⚠️ 缺乏请求参数", "请先打开 京东App -> 评价中心 -> 试用列表 获取配置");
+            return $done();
+        }
 
-      const r = obj.result;
-      const total = r.totalClaimableNum || (r.trialBar && r.trialBar.claimableNum) || 0;
-      const acts = r.trialActivities || [];
+        let req;
+        try {
+            req = JSON.parse(reqStr);
+        } catch (e) {
+            return $done();
+        }
 
-      write(K.failJ, "0");
-      write(K.needJ, "0");
-
-      const currSnap = buildSnap(total, acts);
-      const prev = load(K.snap);
-      const diff = diffSnap(prev, currSnap);
-
-      if (diff.length > 0) {
-        doNotify(currSnap.total, diff);
-      }
-
-      save(K.snap, currSnap);
-      console.log("[Cron] total=" + total + " diff=" + diff.length);
-    }).catch(function (err) {
-      console.log("[Cron] fail: " + err.message);
-      expired();
-    }).finally(function () {
-      $done({});
-    });
-  }
-
-  // ── 过期处理 ───────────────────────────────
-  function expired() {
-    const prevFail = parseInt(read(K.failJ) || "0", 10);
-    const newFail = prevFail + 1;
-    write(K.failJ, String(newFail));
-    write(K.needJ, "1");
-
-    // 首次立即通知，之后每 4 轮（~2 小时）提醒
-    if (newFail > 1 && (newFail & 3) !== 0) return;
-
-    const snap = load(K.snap);
-    let tail = "暂无数据";
-    if (snap) {
-      const last = new Date(snap.ts).toLocaleTimeString("zh-CN");
-      const ago = Math.floor((Date.now() - snap.ts) / 60000);
-      tail = "\n\n最后一次：" + last + "（" + ago + " 分钟前）\n共 " + snap.total + " 件";
+        try {
+            const resp = await new Promise((resolve, reject) => {
+                $task.fetch(req).then(resolve, reject);
+            });
+            
+            const body = JSON.parse(resp.body);
+            // 校验京东返回的code，如果不为0通常是sign过期或非法
+            if (body.code !== "0" && body.code !== 0) {
+                throw new Error("Sign Expired");
+            }
+            
+            $persistentStore.write("0", K_FAIL);
+            processData(body, false);
+        } catch (e) {
+            handleExpired();
+        } finally {
+            $done();
+        }
     }
 
-    doNotifyP("京东试用", "签名过期，请刷新",
-      "操作：打开 App → 评价中心 → 试用列表，脚本自动恢复" + tail);
-  }
+    // --- 核心数据比对逻辑 ---
+    function processData(data, isFromMitm) {
+        if (!data.result || !data.result.trialActivities) return;
+        
+        const activities = data.result.trialActivities;
+        const currentTotal = data.result.totalClaimableNum || (data.result.trialBar && data.result.trialBar.claimableNum) || 0;
+        
+        let newSnapshot = {};
+        
+        // 构建新快照字典 (key: activityId_skuId)
+        activities.forEach(item => {
+            const key = `${item.activityId || 'A'}_${item.skuId || 'S'}`;
+            newSnapshot[key] = {
+                name: item.skuName || item.activityName || `未知商品_${item.skuId}`,
+                stock: item.claimableNum || 0
+            };
+        });
 
-  // ── 快照构建 ───────────────────────────────
-  function buildSnap(total, acts) {
-    return {
-      total: total,
-      ts: Date.now(),
-      items: acts.map(function (a) {
-        return {
-          k: a.activityId + "_" + a.skuId,
-          name: a.skuName || a.activityName || ("SKU:" + a.skuId),
-          stock: a.claimableNum || 0,
-        };
-      }),
-    };
-  }
+        // 读取旧快照
+        const oldSnapshotStr = $persistentStore.read(K_SNAP);
+        const oldSnapshot = oldSnapshotStr ? JSON.parse(oldSnapshotStr) : {};
 
-  // ── 核心比对 ───────────────────────────────
-  function diffSnap(prev, curr) {
-    if (!prev) return [];
-    const out = [];
+        let out = [];
 
-    if (curr.total > prev.total) {
-      out.push("▶ 可申请 +" + (curr.total - prev.total) + "（" + prev.total + "→" + curr.total + "）");
+        // 比对差异
+        for (const [key, newItem] of Object.entries(newSnapshot)) {
+            // 需求：售罄（名额为0）静默不通知
+            if (newItem.stock <= 0) continue;
+
+            const oldItem = oldSnapshot[key];
+            if (!oldItem) {
+                // 新出现的商品
+                out.push(`🆕 ${newItem.name} (余 ${newItem.stock} 件)`);
+            } else if (newItem.stock > oldItem.stock) {
+                // 已有商品，且名额增加
+                out.push(`📈 ${newItem.name} (名额: ${oldItem.stock} -> ${newItem.stock})`);
+            }
+        }
+
+        // 组装通知
+        if (out.length > 0) {
+            const title = `京东试用上新 (可申请 ${currentTotal} 件)`;
+            const body = out.slice(0, 8).join("\n") + (out.length > 8 ? `\n...等共 ${out.length} 条更新` : "");
+            $notification.post(title, "", body);
+        } else if (isFromMitm && Object.keys(oldSnapshot).length === 0) {
+            $notification.post("京东试用监控", "✅ 初始化成功", "已成功抓取列表，开始自动监控");
+        }
+
+        // 保存新快照
+        $persistentStore.write(JSON.stringify(newSnapshot), K_SNAP);
     }
 
-    const map = {};
-    prev.items.forEach(function (it) {
-      map[it.k] = it;
-    });
-
-    curr.items.forEach(function (it) {
-      if (!map[it.k]) {
-        // 新增商品
-        let line = "🆕 " + it.name;
-        if (it.stock > 0) line += " · 余 " + it.stock + " 件";
-        out.push(line);
-      } else if (it.stock > map[it.k].stock) {
-        // 库存增加
-        out.push("📈 " + it.name + "：" + map[it.k].stock + "→" + it.stock);
-      }
-    });
-
-    return out;
-  }
-
-  // ── 通知封装 ───────────────────────────────
-  function doNotify(total, lines) {
-    const shown = lines.slice(0, 5);
-    let body = shown.join("\n");
-    if (lines.length > 5) body += "\n…共 " + lines.length + " 条更新";
-    $notification.post("京东试用 · 可申请 " + total + " 件", "", body);
-  }
-
-  function doNotifyP(title, sub, body) {
-    $notification.post(title, sub || "", body);
-  }
-
-  // ── 持久化工具 ─────────────────────────────
-  function read(key) {
-    return $persistentStore.read(key);
-  }
-
-  function write(key, value) {
-    $persistentStore.write(value, key);
-  }
-
-  function save(key, obj) {
-    $persistentStore.write(JSON.stringify(obj), key);
-  }
-
-  function load(key) {
-    try {
-      const v = $persistentStore.read(key);
-      return v ? JSON.parse(v) : null;
-    } catch (e) {
-      return null;
+    // --- 签名过期处理 ---
+    function handleExpired() {
+        let fails = parseInt($persistentStore.read(K_FAIL) || "0", 10) + 1;
+        $persistentStore.write(fails.toString(), K_FAIL);
+        
+        // 阶梯式通知，避免轰炸 (第1次，第5次，第9次...通知)
+        if (fails === 1 || fails % 4 === 1) {
+            $notification.post(
+                "京东试用 ⚠️ 签名失效", 
+                "请求已过期，请重新获取", 
+                "请打开 京东App -> 评价中心 -> 试用列表 刷新参数。"
+            );
+        }
     }
-  }
-
-  function safeJson(s) {
-    try {
-      return JSON.parse(s);
-    } catch (e) {
-      return null;
-    }
-  }
-
 })();
