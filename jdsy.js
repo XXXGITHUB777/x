@@ -1,5 +1,4 @@
-/*
-============================================================
+/***
 京东试用监控 - Quantumult X 版
 功能：自动抓包 + 自动比对 + 自动通知 一体化
 一个脚本文件搞定，上传 GitHub 直接远程引用
@@ -19,33 +18,30 @@ hostname = api.m.jd.com
 1. 开启 MitM 和重写
 2. 打开京东 APP → 评价中心 → 试用列表
 3. 收到初始化成功通知后，脚本即可每半小时自动监控
-============================================================
-*/
+***********************************************************/
 
-const K_REQ = 'jdsy_req_v7';
-const K_SNAP = 'jdsy_snap_v7';
-const K_FAIL = 'jdsy_fail_v7';
+var K_REQ = "jdsy_req_v11";
+var K_SNAP = "jdsy_snap_v11";
+var K_FAIL = "jdsy_fail_v11";
 
-const isQX = typeof $task !== 'undefined';
-const isMitm = typeof $request !== 'undefined' && typeof $response !== 'undefined';
+var isQX = (typeof $task !== "undefined");
+var isMitm = (typeof $request !== "undefined" && typeof $response !== "undefined" && $request.url.indexOf("functionId=getCommentOfficerTrialHome") > -1);
 
-function notify(title, subtitle, message) {
-    console.log(`[${title}] ${subtitle} - ${message}`);
-    if (isQX) $notify(title, subtitle, message);
+function notify(t, s, m) {
+    console.log("[" + t + "] " + s + " : " + m);
+    if (isQX) $notify(t, s, m);
 }
 
-function getEnv(key) {
-    if (typeof $persistentStore !== 'undefined') return $persistentStore.read(key);
-    return null;
+function gs(key) {
+    return $persistentStore.read(key);
 }
 
-function setEnv(value, key) {
-    if (typeof $persistentStore !== 'undefined') return $persistentStore.write(value, key);
-    return false;
+function ss(key, val) {
+    $persistentStore.write(val, key);
 }
 
-function done(value = {}) {
-    if (typeof $done !== 'undefined') $done(value);
+function done(v) {
+    if (typeof $done !== "undefined") $done(v || {});
 }
 
 if (isMitm) {
@@ -55,121 +51,119 @@ if (isMitm) {
 }
 
 function runMitm() {
-    const reqData = {
-        url: $request.url || '',
-        method: $request.method || 'POST',
-        headers: $request.headers || {},
-        body: $request.body || ''
+    var req = {
+        url: $request.url,
+        method: $request.method || "POST",
+        headers: $request.headers,
+        body: $request.body
     };
-    setEnv(JSON.stringify(reqData), K_REQ);
-    setEnv("0", K_FAIL);
-
+    ss(K_REQ, JSON.stringify(req));
+    ss(K_FAIL, "0");
     try {
-        const bodyObj = JSON.parse($response.body);
-        processData(bodyObj, true);
-    } catch (e) {
+        processData(JSON.parse($response.body), true);
+    } catch(e) {
         done();
     }
 }
 
 function runCron() {
-    const reqStr = getEnv(K_REQ);
+    var reqStr = gs(K_REQ);
     if (!reqStr) {
-        notify("京东试用监控", "⚠️ 缺少请求参数", "请先打开京东App进入试用列表抓包");
+        notify("京东试用", "缺少缓存", "先打开京东App → 评价中心 → 试用列表");
         return done();
     }
+    var req;
+    try { req = JSON.parse(reqStr); } catch(e) { return done(); }
 
-    let reqObj;
-    try {
-        reqObj = JSON.parse(reqStr);
-    } catch (e) {
-        return done();
-    }
-
-    $task.fetch(reqObj).then(resp => {
+    $task.fetch(req).then(function(resp) {
         try {
-            const bodyObj = JSON.parse(resp.body);
-            if (bodyObj && bodyObj.result) {
-                setEnv("0", K_FAIL);
-                processData(bodyObj, false);
+            var obj = JSON.parse(resp.body);
+            if (obj && obj.result) {
+                ss(K_FAIL, "0");
+                processData(obj, false);
             } else {
-                handleFail();
+                onFail();
             }
-        } catch (e) {
-            handleFail();
+        } catch(e) {
+            onFail();
         }
-    }, err => {
-        handleFail();
+    }, function() {
+        onFail();
     });
 }
 
-function processData(data, isFromMitm) {
+function processData(data, fromMitm) {
     if (!data || !data.result) return done();
-    
-    const result = data.result;
-    const total = result.totalClaimableNum || 0;
-    const acts = result.trialActivities || [];
+    var r = data.result;
+    var acts = r.trialActivities || [];
 
-    if (total === 0 || acts.length === 0) {
-        setEnv(JSON.stringify({ total: 0, items: [], ts: Date.now() }), K_SNAP);
+    var avail = [];
+    for (var i = 0; i < acts.length; i++) {
+        if (acts[i].claimableNum > 0) {
+            avail.push(acts[i]);
+        }
+    }
+
+    if (avail.length === 0) {
+        ss(K_SNAP, JSON.stringify({total:0, items:[], raw:[], ts:Date.now()}));
         return done();
     }
 
-    const oldSnapStr = getEnv(K_SNAP);
-    let oldSnap = { total: 0, items: [], ts: 0 };
-    try {
-        if (oldSnapStr) oldSnap = JSON.parse(oldSnapStr);
-    } catch (e) {}
+    var oldStr = gs(K_SNAP);
+    var old = null;
+    try { old = oldStr ? JSON.parse(oldStr) : null; } catch(e) {}
+    if (!old) old = {total:0, items:[], raw:[]};
 
-    let newItems = [];
-    let newKeys = new Set();
-    
-    acts.forEach(act => {
-        const key = (act.activityId || '') + '_' + (act.skuId || '');
-        newItems.push({ key, act });
-        newKeys.add(key);
-    });
+    var oldMap = {};
+    for (var j = 0; j < old.items.length; j++) {
+        oldMap[old.items[j]] = old.raw[j] || null;
+    }
 
-    let outMsgs = [];
+    var msgs = [];
+    var newItems = [];
+    var newRaw = [];
 
-    newItems.forEach(({ key, act }) => {
-        if (!oldSnap.items || oldSnap.items.indexOf(key) === -1) {
-            const name = act.skuName || ("SKU:" + (act.skuId || act.activityId));
-            let msg = "🆕 " + name;
-            if (act.claimableNum > 0) msg += " · 余" + act.claimableNum + "件";
-            outMsgs.push(msg);
+    for (var k = 0; k < avail.length; k++) {
+        var act = avail[k];
+        var id = String(act.activityId) + "_" + String(act.skuId);
+        newItems.push(id);
+        newRaw.push({id:id, s:act.claimableNum});
+
+        if (!oldMap[id]) {
+            var nm = act.skuName || ("SKU" + act.skuId);
+            msgs.push("🆕 " + nm + " · 余" + act.claimableNum + "件");
+        } else if (oldMap[id] && act.claimableNum > oldMap[id].s) {
+            var nm2 = act.skuName || ("SKU" + act.skuId);
+            msgs.push("📈 " + nm2 + "：" + oldMap[id].s + "→" + act.claimableNum);
         }
-    });
-
-    if (total > oldSnap.total) {
-        outMsgs.push("▶ 可申请 +" + (total - oldSnap.total) + "（" + oldSnap.total + "→" + total + "）");
     }
 
-    if (outMsgs.length > 0 && oldSnap.items && oldSnap.items.length > 0) {
-        notify("京东试用 · 可申请 " + total + " 件", "", outMsgs.join("\n"));
-    } else if (isFromMitm && oldSnap.items.length === 0) {
-        notify("京东试用监控", "✅ 初始化成功", "已成功抓取参数，开始自动监控\n当前可申请 " + total + " 件");
+    if (avail.length > old.total) {
+        msgs.push("▶ 可申请商品数 +" + (avail.length - old.total) + "（" + old.total + "→" + avail.length + "）");
     }
 
-    const newSnap = {
-        total: total,
+    var hadBefore = (old.items.length > 0);
+    if (msgs.length > 0 && hadBefore) {
+        notify("京东试用 · " + avail.length + "件可申", "", msgs.join("\n"));
+    } else if (fromMitm && !hadBefore) {
+        notify("京东试用监控", "初始化成功", "当前可申请: " + avail.length + "件\n已抓取参数，开始自动监控");
+    }
+
+    var snap = {
+        total: avail.length,
         ts: Date.now(),
-        items: newItems.map(x => x.key)
+        items: newItems,
+        raw: newRaw
     };
-    setEnv(JSON.stringify(newSnap), K_SNAP);
+    ss(K_SNAP, JSON.stringify(snap));
     done();
 }
 
-function handleFail() {
-    let failCount = parseInt(getEnv(K_FAIL) || "0", 10) + 1;
-    setEnv(failCount.toString(), K_FAIL);
-
-    if (failCount === 1 || failCount % 4 === 1) {
-        notify(
-            "京东试用 ⚠️ 签名过期",
-            "请求参数已失效",
-            "请重新进入京东App → 评价中心 → 试用列表触发抓包"
-        );
+function onFail() {
+    var c = parseInt(gs(K_FAIL) || "0", 10) + 1;
+    ss(K_FAIL, String(c));
+    if (c === 1 || c % 4 === 1) {
+        notify("京东试用", "签名过期", "请重新进入京东App → 评价中心 → 试用列表");
     }
     done();
 }
