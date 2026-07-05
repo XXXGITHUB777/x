@@ -1,185 +1,89 @@
-/*
-京东试用监控 - Quantumult X 版
-功能：自动抓包 + 自动比对 + 自动通知 一体化
-一个脚本文件搞定，上传 GitHub 直接远程引用
+/**
+ * @fileoverview 京东评价官试用商品 - 定时监控上新 (Quantumult X)
+ * @description 结合 Rewrite 和 Task。手动访问页面获取参数后，定时每半小时监控库存。
+ */
 
-==================== QX 配置 ====================
+const isRequest = typeof $request !== "undefined";
 
-[rewrite_local]
-^https?:\/\/api\.m\.jd\.com\/client\.action url script-response-body https://raw.githubusercontent.com/XXXGITHUB777/x/refs/heads/main/jdsy.js
+if (isRequest) {
+    // ---------------------------------
+    // 1. Rewrite 阶段：拦截请求并保存参数
+    // ---------------------------------
+    const cookie = $request.headers["Cookie"] || $request.headers["cookie"];
+    const body = $request.body;
+    
+    if (cookie && body) {
+        $prefs.setValueForKey(cookie, "JD_CommentOfficer_Cookie");
+        $prefs.setValueForKey(body, "JD_CommentOfficer_Body");
+        $notify("🐶 京东评价官", "✅ 参数获取成功", "已保存最新请求参数，定时监控任务已准备就绪！");
+    } else {
+        console.log("[京东评价官] 无法提取 Cookie 或 Body，请检查请求。");
+    }
+    // 放行原请求
+    $done({});
 
-[mitm]
-hostname = api.m.jd.com
-
-[task_local]
-0,30 * * * * https://raw.githubusercontent.com/XXXGITHUB777/x/refs/heads/main/jdsy.js tag=JD试用监控, enabled=true
-
-【使用方法】
-1. 开启 MitM 和重写
-2. 打开京东 APP → 评价中心 → 试用列表
-3. 收到抓包成功通知后，脚本即可每半小时自动监控
-============================================================
-*/
-
-const K_REQ = 'jdsy_req';
-const K_SNAP = 'jdsy_snap';
-const K_FAIL = 'jdsy_fail';
-
-// ==================== 环境检测 ====================
-
-const isQX = typeof $task !== 'undefined';
-const isMitm = typeof $request !== 'undefined' && typeof $response !== 'undefined';
-
-function getEnv(key) {
-    if (isQX) return $prefs.valueForKey(key);
-    return null;
-}
-
-function setEnv(value, key) {
-    if (isQX) return $prefs.setValueForKey(value, key);
-    return false;
-}
-
-function notify(title, subtitle, message) {
-    console.log(`[${title}] ${subtitle} - ${message}`);
-    if (isQX) $notify(title, subtitle, message);
-}
-
-function done(value = {}) {
-    if (typeof $done !== 'undefined') $done(value);
-}
-
-// ==================== 业务逻辑 ====================
-
-function isTrialRequest() {
-    if (!$request) return false;
-    var body = $request.body || '';
-    return body.indexOf('functionId=getCommentOfficerTrialHome') > -1;
-}
-
-if (isMitm && isTrialRequest()) {
-    runMitm();
 } else {
-    runCron();
-}
+    // ---------------------------------
+    // 2. Cron Task 阶段：定时发起监控请求
+    // ---------------------------------
+    const cookie = $prefs.valueForKey("JD_CommentOfficer_Cookie");
+    const body = $prefs.valueForKey("JD_CommentOfficer_Body");
 
-function runMitm() {
-    const reqData = {
-        url: $request.url || '',
-        method: $request.method || 'POST',
-        headers: $request.headers || {},
-        body: $request.body || ''
+    if (!cookie || !body) {
+        $notify("🐶 京东评价官", "❌ 缺少参数", "请先在京东APP内手动进入一次“评价官免费试用”页面获取参数。");
+        $done();
+    }
+
+    const req = {
+        url: "https://api.m.jd.com/client.action?functionId=getCommentOfficerTrialHome",
+        method: "POST",
+        headers: {
+            "Cookie": cookie,
+            "Content-Type": "application/x-www-form-urlencoded",
+            "User-Agent": "jdapp;iPhone;15.8.50;;;M/5.0;appBuild/170577;jdSupportDarkMode/0;lang/zh_CN",
+            "Origin": "https://comment.m.jd.com",
+            "Referer": "https://comment.m.jd.com/"
+        },
+        body: body
     };
-    setEnv(JSON.stringify(reqData), K_REQ);
-    setEnv('0', K_FAIL);
 
-    notify('京东试用', '抓包成功', '已缓存请求，每30分钟自动监控');
-
-    try {
-        const bodyObj = JSON.parse($response.body);
-        processData(bodyObj, true);
-    } catch (e) {
-        done();
-    }
-}
-
-function runCron() {
-    const reqStr = getEnv(K_REQ);
-    if (!reqStr) {
-        notify('京东试用', '缺少请求缓存', '请先打开京东App进入试用列表触发抓包');
-        return done();
-    }
-
-    let reqObj;
-    try {
-        reqObj = JSON.parse(reqStr);
-    } catch (e) {
-        return done();
-    }
-
-    $task.fetch(reqObj).then(resp => {
+    $task.fetch(req).then(response => {
         try {
-            const bodyObj = JSON.parse(resp.body);
-            if (bodyObj && bodyObj.result) {
-                setEnv('0', K_FAIL);
-                processData(bodyObj, false);
+            let obj = JSON.parse(response.body);
+            
+            // 验证接口是否正常返回商品数据
+            if (obj && obj.result && obj.result.trialActivities) {
+                let items = obj.result.trialActivities;
+                
+                // 筛选出剩余件数 > 0 或者状态不等于 31（31通常代表已结束/抢光）的商品
+                let availableItems = items.filter(item => item.claimableNum > 0 || item.totalNum > 0);
+                
+                if (availableItems.length > 0) {
+                    // 有库存，格式化文本并弹窗
+                    let msgList = availableItems.map(i => {
+                        let shortTitle = i.skuTitle.length > 15 ? i.skuTitle.substring(0, 15) + "..." : i.skuTitle;
+                        return `📦 ${shortTitle} (剩余:${i.claimableNum}件)`;
+                    });
+                    
+                    $notify(
+                        "🐶 京东评价官上新啦！", 
+                        `发现 ${availableItems.length} 个可领商品，快去APP查看`, 
+                        msgList.join("\n")
+                    );
+                    console.log(`[京东评价官监控] 发现新商品！\n${msgList.join("\n")}`);
+                } else {
+                    // 没库存，静默处理（只在日志打印，不打扰用户）
+                    console.log("[京东评价官监控] 暂无可用商品，全被抢光。");
+                }
             } else {
-                handleFail();
+                console.log("[京东评价官监控] 数据解析失败，可能是请求体中的防伪签名(h5st)已过期。响应内容: " + response.body);
             }
         } catch (e) {
-            handleFail();
+            console.log("[京东评价官监控] 脚本报错: " + e.message);
         }
-    }, err => {
-        handleFail();
+        $done();
+    }, error => {
+        console.log("[京东评价官监控] 网络请求失败: " + error);
+        $done();
     });
-}
-
-function processData(data, isFromMitm) {
-    if (!data || !data.result) return done();
-    
-    const result = data.result;
-    const acts = result.trialActivities || [];
-
-    const available = acts.filter(a => a.claimableNum > 0);
-    const availCount = available.length;
-
-    if (availCount === 0) {
-        setEnv(JSON.stringify({ total: 0, items: [], raw: [], ts: Date.now() }), K_SNAP);
-        return done();
-    }
-
-    const oldSnapStr = getEnv(K_SNAP);
-    let oldSnap = { total: 0, items: [], raw: [], ts: 0 };
-    try {
-        if (oldSnapStr) oldSnap = JSON.parse(oldSnapStr);
-    } catch (e) {}
-
-    const oldMap = {};
-    for (let i = 0; i < oldSnap.items.length; i++) {
-        oldMap[oldSnap.items[i]] = oldSnap.raw[i] || null;
-    }
-
-    let msgs = [];
-    let newItems = [];
-    let newRaw = [];
-
-    for (let i = 0; i < available.length; i++) {
-        const act = available[i];
-        const id = String(act.activityId) + '_' + String(act.skuId);
-        newItems.push(id);
-        newRaw.push({ id, s: act.claimableNum });
-
-        if (!oldMap[id]) {
-            const name = act.skuName || ('SKU:' + act.skuId);
-            msgs.push('🆕 ' + name + ' · 余' + act.claimableNum + '件');
-        } else if (oldMap[id] && act.claimableNum > oldMap[id].s) {
-            const name = act.skuName || ('SKU:' + act.skuId);
-            msgs.push('📈 ' + name + '：' + oldMap[id].s + '→' + act.claimableNum);
-        }
-    }
-
-    if (availCount > oldSnap.total) {
-        msgs.push('▶ 可申请商品数 ' + oldSnap.total + '→' + availCount);
-    }
-
-    const hadBefore = oldSnap.items.length > 0;
-
-    if (msgs.length > 0 && hadBefore) {
-        notify('京东试用 · ' + availCount + '件可申', '', msgs.join('\n'));
-    } else if (isFromMitm && !hadBefore) {
-        notify('京东试用监控', '✅ 初始化成功', '当前可申请: ' + availCount + '件');
-    }
-
-    setEnv(JSON.stringify({ total: availCount, ts: Date.now(), items: newItems, raw: newRaw }), K_SNAP);
-    done();
-}
-
-function handleFail() {
-    let failCount = parseInt(getEnv(K_FAIL) || '0', 10) + 1;
-    setEnv(String(failCount), K_FAIL);
-
-    if (failCount === 1 || failCount % 4 === 1) {
-        notify('京东试用', '⚠️ 签名过期', '请重新进入京东App → 评价中心 → 试用列表');
-    }
-    done();
 }
