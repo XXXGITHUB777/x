@@ -1,16 +1,16 @@
 /*
-京东试用监控 v6 - Quantumult X 版
+京东试用监控 v7 - Quantumult X 版
 功能：每30分钟自动检查，有新品上架通知，售光不报
 
 QX 配置：
 [rewrite_local]
-^https:\/\/api\.m\.jd\.com\/client\.action\?functionId=getCommentOfficerTrialHome url script-response-body https://raw.githubusercontent.com/XXXGITHUB777/x/refs/heads/main/jdsy.js
+^https:\/\/api\.m\.jd\.com\/client\.action url script-response-body https://raw.githubusercontent.com/XXXGITHUB777/x/refs/heads/main/jdsy.js
 
 [mitm]
 hostname = api.m.jd.com
 
 [task_local]
-0,30 * * * * https://raw.githubusercontent.com/XXXGITHUB777/x/refs/heads/main/jdsy.js, tag=JD试用监控, enable=true
+0,30 * * * * https://raw.githubusercontent.com/XXXGITHUB777/x/refs/heads/main/jdsy.js, tag=JD试用监控, enabled=true
 
 使用方法：
 1. 开启 MitM 和重写
@@ -18,14 +18,23 @@ hostname = api.m.jd.com
 3. 收到"抓取成功"通知后，脚本开始自动监控
 */
 
-var REQ_KEY = "jd_trial_req";
-var SNAP_KEY = "jd_trial_snap";
-var FAIL_KEY = "jd_trial_fail";
+var REQ_KEY = "jd_trial_req_v7";
+var SNAP_KEY = "jd_trial_snap_v7";
+var FAIL_KEY = "jd_trial_fail_v7";
 
 // ========== 模式判断 ==========
-var isMitm = (typeof $request !== 'undefined' && typeof $response !== 'undefined');
+var isMitm = false;
+if (typeof $request !== 'undefined' && typeof $response !== 'undefined') {
+    var url = $request.url || "";
+    var body = $request.body || "";
+    // URL 或 body 里包含 functionId 就算目标请求
+    if (url.indexOf("functionId=getCommentOfficerTrialHome") > -1 || 
+        body.indexOf("functionId=getCommentOfficerTrialHome") > -1) {
+        isMitm = true;
+    }
+}
 
-if (isMitm && $request.url.indexOf("functionId=getCommentOfficerTrialHome") > -1) {
+if (isMitm) {
     runMitm();
 } else {
     runCron();
@@ -33,7 +42,6 @@ if (isMitm && $request.url.indexOf("functionId=getCommentOfficerTrialHome") > -1
 
 // ========== MITM 模式：抓包 ==========
 function runMitm() {
-    // 存完整请求（给 cron 重放用）
     var req = {
         url: $request.url || "",
         method: "POST",
@@ -45,7 +53,6 @@ function runMitm() {
     
     $notify("京东试用", "抓取成功", "已缓存请求，每30分钟自动检查");
     
-    // 解析响应
     try {
         var obj = JSON.parse($response.body);
         if (obj && obj.result) {
@@ -92,7 +99,6 @@ function runCron() {
 function processSnap(result) {
     var acts = result.trialActivities || [];
     
-    // 只保留有库存的商品（claimableNum > 0）
     var availIds = [];
     var availMap = {};
     
@@ -107,13 +113,11 @@ function processSnap(result) {
         }
     }
     
-    // 售光 → 静默
     if (availIds.length === 0) {
         $persistentStore.write(JSON.stringify({ids: [], map: {}, ts: Date.now()}), SNAP_KEY);
         return $done({});
     }
     
-    // 读旧快照
     var oldStr = $persistentStore.read(SNAP_KEY);
     var old = {ids: [], map: {}, ts: 0};
     try {
@@ -127,24 +131,19 @@ function processSnap(result) {
     
     var msgs = [];
     
-    // 比对：新增商品
     for (var k = 0; k < availIds.length; k++) {
         var curId = availIds[k];
         if (!oldIds[curId]) {
-            // 新品
             msgs.push("🆕 " + availMap[curId].name + " · 余" + availMap[curId].stock + "件");
         } else if (availMap[curId].stock > oldIds[curId].stock) {
-            // 库存增加
             msgs.push("📈 " + availMap[curId].name + "：" + oldIds[curId].stock + "→" + availMap[curId].stock);
         }
     }
     
-    // 通知（首次不通知）
     if (msgs.length > 0 && old.ids.length > 0) {
         $notify("京东试用 · " + availIds.length + "件可申", "", msgs.join("\n"));
     }
     
-    // 存新快照
     var newSnap = {
         ids: availIds,
         map: availMap,
