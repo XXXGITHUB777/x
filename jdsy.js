@@ -1,5 +1,5 @@
 /*
-京东试用监控 - Quantumult X 优化版 v4 (逢货必报版)
+京东试用监控 - Quantumult X 优化版 v5 (逢错必报版)
 ==================== QX 配置 ====================
 
 [rewrite_local]
@@ -14,9 +14,9 @@ hostname = api.m.jd.com
 ============================================================
 */
 
-const K_REQ = 'jdsy_req_v4';
-const K_SNAP = 'jdsy_snap_v4';
-const K_FAIL = 'jdsy_fail_v4';
+const K_REQ = 'jdsy_req_v5';
+const K_SNAP = 'jdsy_snap_v5';
+const K_FAIL = 'jdsy_fail_v5';
 
 const isQX = typeof $task !== 'undefined';
 const isMitm = typeof $request !== 'undefined';
@@ -90,7 +90,7 @@ function runMitm() {
         try {
             const bodyObj = JSON.parse($response.body);
             if (bodyObj.code === "0" || bodyObj.code === 0) {
-                notify('🛒 京东试用', '✅ 抓包刷新成功', '已更新安全请求令牌。');
+                notify('🛒 京东试用', '✅ 抓包刷新成功', '已更新请求令牌，当前数据有效。');
                 processData(bodyObj, true);
             } else {
                 done();
@@ -99,15 +99,18 @@ function runMitm() {
             done();
         }
     } else {
-        notify('🛒 京东试用', '✅ 抓包刷新成功', '定时任务即可生效，只要有货就会通知。');
+        notify('🛒 京东试用', '✅ 抓包刷新成功', '已更新请求令牌，定时任务即可生效。');
         done();
     }
 }
 
 function runCron() {
     const reqStr = store.get(K_REQ);
+    
+    // v5改动：彻底修复丢失缓存时不弹窗的问题
     if (!reqStr) {
         console.log('缺少请求缓存，请先抓包');
+        notify('⚠️ 试用监控尚未初始化', '找不到抓包凭证', '👉 请点击桌面的快捷指令，跳转京东抓取一次！');
         return done();
     }
 
@@ -115,6 +118,7 @@ function runCron() {
     try {
         reqObj = JSON.parse(reqStr);
     } catch (e) {
+        notify('⚠️ 缓存数据损坏', '无法解析请求数据', '👉 请点击桌面的快捷指令，重新抓包！');
         return done();
     }
 
@@ -125,17 +129,17 @@ function runCron() {
                 store.set('0', K_FAIL);
                 processData(bodyObj, false);
             } else {
-                let errorMsg = bodyObj.echo || bodyObj.message || '凭证失效或请求参数错误';
+                let errorMsg = bodyObj.echo || bodyObj.message || '京东服务器未返回预期数据';
                 console.log('接口返回异常: ' + resp.body);
                 handleFail(errorMsg);
             }
         } catch (e) {
             console.log('非 JSON 响应内容: ' + resp.body.substring(0, 100));
-            handleFail('返回数据非 JSON 格式 (京东可能拦截了请求)');
+            handleFail('返回数据非 JSON 格式 (大概率是Cookie已过期被京东拦截)');
         }
     }, err => {
         console.log('网络请求失败: ' + JSON.stringify(err));
-        handleFail('网络连接异常');
+        handleFail(`网络请求被拒绝或超时`);
     });
 }
 
@@ -169,18 +173,15 @@ function processData(data, isFromMitm) {
         newItems[id] = currentNum;
         const oldNum = oldSnap.items[id];
 
-        // 精简排版，方便在通知栏显示更多内容
         if (oldNum === undefined) {
             msgs.push(`🆕 ${name} | 余 ${currentNum}件`);
         } else if (currentNum > oldNum) {
             msgs.push(`📈 ${name} | ${oldNum}→${currentNum}件`);
         } else {
-            // v4 核心改动：只要存在，每次都加入通知列表
             msgs.push(`🟢 ${name} | 余 ${currentNum}件`);
         }
     }
 
-    // 防止商品太多挤爆通知栏，最多显示前 10 个
     const displayMsgs = msgs.slice(0, 10).join('\n');
     const moreText = msgs.length > 10 ? `\n...等共 ${availCount} 件` : '';
 
@@ -200,8 +201,7 @@ function handleFail(reason) {
     let failCount = parseInt(store.get(K_FAIL) || '0', 10) + 1;
     store.set(String(failCount), K_FAIL);
 
-    if (failCount === 1 || failCount % 5 === 1) {
-        notify('⚠️ 京东试用监控失效', `累计失败 ${failCount} 次`, `原因: ${reason}\n请点击快捷指令重新抓包刷新！`);
-    }
+    // v5改动：去掉除余运算，只要失败，每次必弹窗！
+    notify('⚠️ 京东试用凭证已失效', `已连续失效 ${failCount} 次`, `原因: ${reason}\n👉 请立即点击桌面的快捷指令刷新！`);
     done();
 }
