@@ -1,5 +1,5 @@
 /*
-京东试用监控 - Quantumult X 优化版 v3
+京东试用监控 - Quantumult X 优化版 v4 (逢货必报版)
 ==================== QX 配置 ====================
 
 [rewrite_local]
@@ -14,15 +14,14 @@ hostname = api.m.jd.com
 ============================================================
 */
 
-const K_REQ = 'jdsy_req_v3';
-const K_SNAP = 'jdsy_snap_v3';
-const K_FAIL = 'jdsy_fail_v3';
+const K_REQ = 'jdsy_req_v4';
+const K_SNAP = 'jdsy_snap_v4';
+const K_FAIL = 'jdsy_fail_v4';
 
 const isQX = typeof $task !== 'undefined';
 const isMitm = typeof $request !== 'undefined';
 const hasResponse = typeof $response !== 'undefined';
 
-// ==================== 工具函数 ====================
 const store = {
     get: (key) => isQX ? $prefs.valueForKey(key) : null,
     set: (val, key) => isQX ? $prefs.setValueForKey(val, key) : false,
@@ -37,8 +36,6 @@ function notify(title, subtitle, message) {
 function done(value = {}) {
     if (typeof $done !== 'undefined') $done(value);
 }
-
-// ==================== 核心逻辑 ====================
 
 function isTrialRequest() {
     if (!$request) return false;
@@ -56,16 +53,14 @@ if (isMitm && isTrialRequest()) {
 }
 
 function runMitm() {
-    // 严格检测是否抓到了 body
     if ($request.method === 'POST' && !$request.body) {
-        notify('⚠️ 抓包异常', '未获取到请求体 (Body)', '请将 QX 重写规则中的 script-response-body 改为 script-request-body 后重新抓包！');
+        notify('⚠️ 抓包异常', '未获取到请求体', '请确保 QX 重写规则使用的是 script-request-body！');
         return done();
     }
 
     let headers = $request.headers || {};
     const cleanHeaders = {};
     
-    // 清洗并规范化请求头 (极度重要：防止 $task.fetch 解析失败)
     for (let key in headers) {
         let lowerKey = key.toLowerCase();
         if (lowerKey === 'content-length' || lowerKey === 'accept-encoding') continue;
@@ -92,11 +87,10 @@ function runMitm() {
     store.set('0', K_FAIL);
 
     if (hasResponse) {
-        // 如果用户坚持用 script-response-body 且运气好抓到了 body
         try {
             const bodyObj = JSON.parse($response.body);
             if (bodyObj.code === "0" || bodyObj.code === 0) {
-                notify('🛒 京东试用', '✅ 抓包与缓存成功', '已缓存双向请求，定时任务即可生效。');
+                notify('🛒 京东试用', '✅ 抓包刷新成功', '已更新安全请求令牌。');
                 processData(bodyObj, true);
             } else {
                 done();
@@ -105,8 +99,7 @@ function runMitm() {
             done();
         }
     } else {
-        // 使用 script-request-body (推荐模式)
-        notify('🛒 京东试用', '✅ 抓包与缓存成功', '已更新安全请求令牌，将于下次定时任务开始比对。');
+        notify('🛒 京东试用', '✅ 抓包刷新成功', '定时任务即可生效，只要有货就会通知。');
         done();
     }
 }
@@ -137,7 +130,8 @@ function runCron() {
                 handleFail(errorMsg);
             }
         } catch (e) {
-            handleFail('返回数据非 JSON 格式');
+            console.log('非 JSON 响应内容: ' + resp.body.substring(0, 100));
+            handleFail('返回数据非 JSON 格式 (京东可能拦截了请求)');
         }
     }, err => {
         console.log('网络请求失败: ' + JSON.stringify(err));
@@ -154,7 +148,7 @@ function processData(data, isFromMitm) {
 
     if (availCount === 0) {
         store.set(JSON.stringify({ total: 0, items: {}, ts: Date.now() }), K_SNAP);
-        console.log('当前无可申请试用商品。');
+        console.log('当前无可申请商品，静默退出。');
         return done();
     }
 
@@ -175,23 +169,27 @@ function processData(data, isFromMitm) {
         newItems[id] = currentNum;
         const oldNum = oldSnap.items[id];
 
+        // 精简排版，方便在通知栏显示更多内容
         if (oldNum === undefined) {
-            msgs.push(`🆕 ${name}\n   └─ 余量: ${currentNum}件`);
+            msgs.push(`🆕 ${name} | 余 ${currentNum}件`);
         } else if (currentNum > oldNum) {
-            msgs.push(`📈 ${name}\n   └─ 补货: ${oldNum} → ${currentNum}件`);
+            msgs.push(`📈 ${name} | ${oldNum}→${currentNum}件`);
+        } else {
+            // v4 核心改动：只要存在，每次都加入通知列表
+            msgs.push(`🟢 ${name} | 余 ${currentNum}件`);
         }
     }
 
-    const hasHistory = Object.keys(oldSnap.items).length > 0;
-    
-    if (msgs.length > 0 && hasHistory) {
-        let title = `京东试用 · 发现新余量 (${availCount})`;
-        let subtitle = availCount > oldSnap.total ? `▶ 总可申请数 ${oldSnap.total} → ${availCount}` : `内部余量发生变动`;
-        notify(title, subtitle, msgs.join('\n\n'));
-    } else if (isFromMitm && !hasHistory) {
+    // 防止商品太多挤爆通知栏，最多显示前 10 个
+    const displayMsgs = msgs.slice(0, 10).join('\n');
+    const moreText = msgs.length > 10 ? `\n...等共 ${availCount} 件` : '';
+
+    if (isFromMitm) {
         console.log(`初始化记录了 ${availCount} 件商品。`);
     } else {
-        console.log(`执行完毕：总计 ${availCount} 件，无变动。`);
+        let title = `🛒 京东试用快报 (${availCount}件)`;
+        let subtitle = availCount > oldSnap.total ? `▶ 发现新增！总数 ${oldSnap.total} → ${availCount}` : `当前可申请清单`;
+        notify(title, subtitle, displayMsgs + moreText);
     }
 
     store.set(JSON.stringify({ total: availCount, items: newItems, ts: Date.now() }), K_SNAP);
@@ -203,7 +201,7 @@ function handleFail(reason) {
     store.set(String(failCount), K_FAIL);
 
     if (failCount === 1 || failCount % 5 === 1) {
-        notify('⚠️ 京东试用监控失效', `累计失败 ${failCount} 次`, `原因: ${reason}\n请打开京东APP -> 评价中心 -> 试用列表 重新抓包！`);
+        notify('⚠️ 京东试用监控失效', `累计失败 ${failCount} 次`, `原因: ${reason}\n请点击快捷指令重新抓包刷新！`);
     }
     done();
 }
