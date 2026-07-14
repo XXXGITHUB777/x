@@ -1,5 +1,5 @@
 /*
-京东试用监控 - Quantumult X 优化版 v5 (逢错必报版)
+京东试用监控 - Quantumult X 优化版 v6 (终极稳定版)
 ==================== QX 配置 ====================
 
 [rewrite_local]
@@ -14,9 +14,9 @@ hostname = api.m.jd.com
 ============================================================
 */
 
-const K_REQ = 'jdsy_req_v5';
-const K_SNAP = 'jdsy_snap_v5';
-const K_FAIL = 'jdsy_fail_v5';
+const K_REQ = 'jdsy_req_v6';
+const K_SNAP = 'jdsy_snap_v6';
+const K_FAIL = 'jdsy_fail_v6';
 
 const isQX = typeof $task !== 'undefined';
 const isMitm = typeof $request !== 'undefined';
@@ -88,6 +88,7 @@ function runMitm() {
 
     if (hasResponse) {
         try {
+            if (!$response.body) return done();
             const bodyObj = JSON.parse($response.body);
             if (bodyObj.code === "0" || bodyObj.code === 0) {
                 notify('🛒 京东试用', '✅ 抓包刷新成功', '已更新请求令牌，当前数据有效。');
@@ -107,7 +108,6 @@ function runMitm() {
 function runCron() {
     const reqStr = store.get(K_REQ);
     
-    // v5改动：彻底修复丢失缓存时不弹窗的问题
     if (!reqStr) {
         console.log('缺少请求缓存，请先抓包');
         notify('⚠️ 试用监控尚未初始化', '找不到抓包凭证', '👉 请点击桌面的快捷指令，跳转京东抓取一次！');
@@ -124,22 +124,25 @@ function runCron() {
 
     $task.fetch(reqObj).then(resp => {
         try {
+            // V6核心修复：严禁对可能为空的 body 进行任何链式调用，防止报错吞噬 done()
+            if (!resp || !resp.body) {
+                return handleFail('京东服务器返回了空数据');
+            }
+            
             const bodyObj = JSON.parse(resp.body);
             if (bodyObj && (bodyObj.code === "0" || bodyObj.code === 0) && bodyObj.result) {
                 store.set('0', K_FAIL);
                 processData(bodyObj, false);
             } else {
-                let errorMsg = bodyObj.echo || bodyObj.message || '京东服务器未返回预期数据';
-                console.log('接口返回异常: ' + resp.body);
+                let errorMsg = bodyObj.echo || bodyObj.message || '京东接口未返回预期状态';
                 handleFail(errorMsg);
             }
         } catch (e) {
-            console.log('非 JSON 响应内容: ' + resp.body.substring(0, 100));
-            handleFail('返回数据非 JSON 格式 (大概率是Cookie已过期被京东拦截)');
+            // 安全阻断，直接抛给 handleFail
+            handleFail('凭证已失效 (服务器返回了非 JSON 的重定向或拦截页面)');
         }
     }, err => {
-        console.log('网络请求失败: ' + JSON.stringify(err));
-        handleFail(`网络请求被拒绝或超时`);
+        handleFail(`网络请求超时或被拒绝`);
     });
 }
 
@@ -201,7 +204,6 @@ function handleFail(reason) {
     let failCount = parseInt(store.get(K_FAIL) || '0', 10) + 1;
     store.set(String(failCount), K_FAIL);
 
-    // v5改动：去掉除余运算，只要失败，每次必弹窗！
     notify('⚠️ 京东试用凭证已失效', `已连续失效 ${failCount} 次`, `原因: ${reason}\n👉 请立即点击桌面的快捷指令刷新！`);
     done();
 }
