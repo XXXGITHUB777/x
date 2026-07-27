@@ -13,8 +13,9 @@
 ^https?:\/\/new\.weixin\.qq\.com\/mp\/getappmsgad script-request-body https://ws.wenn.in/main/Scripts/WeChat.js, tag=微信公众号文章净化
 ^https?:\/\/channels\.video\.qq\.com script-request-body https://ws.wenn.in/main/Scripts/WeChat.js, tag=微信视频号净化
 ^https?:\/\/app\.weixin\.qq\.com\/cgi-bin script-request-body https://ws.wenn.in/main/Scripts/WeChat.js, tag=微信小程序净化
-^https?:\/\/link\.zhihu\.com\/ url 302 https://, tag=知乎链接直连
-^https?:\/\/url\.me\.qq\.com\/ url 302 https://, tag=QQ链接直连
+# ⚠️ 链接直连需要脚本提取目标URL，以下为占位，需自行补充脚本
+# ^https?:\/\/link\.zhihu\.com\/ script-request-header https://example.com/zhihu-link.js, tag=知乎链接直连
+# ^https?:\/\/url\.me\.qq\.com\/ script-request-header https://example.com/qq-link.js, tag=QQ链接直连
 
 # ════════════════════════════════════════
 # 💰 支付宝 Alipay Pro
@@ -23,14 +24,15 @@
 ^https?:\/\/h5api\.alipay\.com\/gateway script-request-body https://ws.wenn.in/main/Scripts/Alipay.js, tag=支付宝首页净化
 ^https?:\/\/transfer\.alipay\.com\/activity script-request-body https://ws.wenn.in/main/Scripts/Alipay.js, tag=转账页营销清理
 ^https?:\/\/fund\.fundmate\.alibaba\.com script-request-body https://ws.wenn.in/main/Scripts/Alipay.js, tag=理财推广清理
-^https?:\/\/member\.service\.alipay\.com header-add X-Member-Level user-custom, tag=支付宝会员增强
+# ⚠️ header-replace-request 只能修改已存在的请求头，添加新请求头需使用 script-request-header
+^https?:\/\/member\.service\.alipay\.com header-replace-request X-Member-Level user-custom, tag=支付宝会员增强
 
 # ════════════════════════════════════════
 # 🎬 腾讯视频 Tencent Video Pro
 # ════════════════════════════════════════
 ^https?:\/\/ads\.api\.tencent\.com\/splash script-request-body https://ws.wenn.in/main/Scripts/TencentVideo.js, tag=腾讯视频开屏过滤
 ^https?:\/\/att\.video\.qcloud\.com script-request-body https://ws.wenn.in/main/Scripts/TencentVideo.js, tag=视频推荐清除
-^https?:\/\/pay\.video\.qcloud\.com header-add X-Vip-Status true, tag=腾讯视频VIP
+^https?:\/\/pay\.video\.qcloud\.com header-replace-request X-Vip-Status true, tag=腾讯视频VIP
 ^https?:\/\/api\.web\.vv\.qq\.com script-request-body https://ws.wenn.in/main/Scripts/TencentVideo.js, tag=4K画质解锁
 
 # ════════════════════════════════════════
@@ -48,7 +50,7 @@
 ^https?:\/\/ads\.api\.taobao\.com script-request-body https://ws.wenn.in/main/Scripts/Taobao.js, tag=淘宝开屏移除
 ^https?:\/\/h5\.msearch\.taobao\.com script-request-body https://ws.wenn.in/main/Scripts/Taobao.js, tag=搜索净化
 ^https?:\/\/cart\.taobao\.com script-request-body https://ws.wenn.in/main/Scripts/Taobao.js, tag=购物车净化
-^https?:\/\/vip\.service\.taobao\.com header-add X-Vip-Level 88, tag=淘宝88VIP
+^https?:\/\/vip\.service\.taobao\.com header-replace-request X-Vip-Level 88, tag=淘宝88VIP
 ^https?:\/\/coupon\.member\.alipay\.com script-request-body https://ws.wenn.in/main/Scripts/Taobao.js, tag=88VIP优惠券解锁
 
 # ════════════════════════════════════════
@@ -58,7 +60,6 @@
 ^https?:\/\/api\.xiaohongshu\.com script-request-body https://ws.wenn.in/main/Scripts/XiaoHongShu.js, tag=信息流净化
 ^https?:\/\/sns-img-bd\.xhscdn\.com script-request-body https://ws.wenn.in/main/Scripts/XiaoHongShu.js, tag=图片去水印
 ^https?:\/\/sns-video-bd\.xhscdn\.com script-request-body https://ws.wenn.in/main/Scripts/XiaoHongShu.js, tag=视频去水印
-^https?:\/\/api\.xiaohongshu\.com script-request-body https://ws.wenn.in/main/Scripts/XiaoHongShu.js, tag=搜索净化
 
 # ════════════════════════════════════════
 # 🧧 拼多多 Pinduoduo Pro
@@ -80,48 +81,48 @@
 # ════════════════════════════════════════
 ^https?:\/\/ads\.didiglobal\.com script-request-body https://ws.wenn.in/main/Scripts/DiDi.js, tag=滴滴开屏过滤
 ^https?:\/\/order\.didi\.cn script-request-body https://ws.wenn.in/main/Scripts/DiDi.js, tag=订单页营销清理
-^https?:\/\/points\.didi\.cn header-add X-DPoints premium, tag=滴滴会员优化
+^https?:\/\/points\.didi\.cn header-replace-request X-DPoints premium, tag=滴滴会员优化
 
 # ════════════════════════════════════════
 # 🔧 钉钉 DingTalk Pro
 # ════════════════════════════════════════
 ^https?:\/\/api\.dingtalk\.com script-request-body https://ws.wenn.in/main/Scripts/DingTalk.js, tag=消息净化
 ^https?:\/\/oa\.dingtalk\.com script-request-body https://ws.wenn.in/main/Scripts/DingTalk.js, tag=工作台推荐清理
-^https?:\/\/nls-gateway\.cn-shanghai\.aliyuncs\.com header-add X-Ding-Assist optimize, tag=钉钉智能助手优化
+^https?:\/\/nls-gateway\.cn-shanghai\.aliyuncs\.com header-replace-request X-Ding-Assist optimize, tag=钉钉智能助手优化
 
 # ════════════════════════════════════════
 # 📊 知乎 Zhihu Pro
 # ════════════════════════════════════════
-^https?:\/\/commercial_api\/real_time_launch_v2 script-request-body https://ws.wenn.in/main/Scripts/Zhihu.js, tag=知乎开屏清理
-^https?:\/\/topstory\/recommend script-request-body https://ws.wenn.in/main/Scripts/Zhihu.js, tag=推荐列表净化
-^https?:\/\/commercial_api\/app_float_layer script-request-body https://ws.wenn.in/main/Scripts/Zhihu.js, tag=悬浮框清理
+# ⚠️ 原配置缺少域名，已修正
+^https?:\/\/.*\.zhihu\.com\/commercial_api\/real_time_launch_v2 script-request-body https://ws.wenn.in/main/Scripts/Zhihu.js, tag=知乎开屏清理
+^https?:\/\/.*\.zhihu\.com\/topstory\/recommend script-request-body https://ws.wenn.in/main/Scripts/Zhihu.js, tag=推荐列表净化
+^https?:\/\/.*\.zhihu\.com\/commercial_api\/app_float_layer script-request-body https://ws.wenn.in/main/Scripts/Zhihu.js, tag=悬浮框清理
 
 # ════════════════════════════════════════
 # 📺 B站 Bilibili Pro
 # ════════════════════════════════════════
 ^https?:\/\/live-bd\.biliapi\.net script-request-body https://ws.wenn.in/main/Scripts/Bilibili.js, tag=B站开屏阻止
 ^https?:\/\/api\.bilibili\.com script-request-body https://ws.wenn.in/main/Scripts/Bilibili.js, tag=直播净化
-^https?:\/\/pgc\/player\/web script-request-body https://ws.wenn.in/main/Scripts/Bilibili.js, tag=1080P解锁
+# ⚠️ 原配置缺少域名，已修正
+^https?:\/\/api\.bilibili\.com\/pgc\/player\/web script-request-body https://ws.wenn.in/main/Scripts/Bilibili.js, tag=1080P解锁
 
 # ════════════════════════════════════════
 # ☁️ 百度网盘 Baidu Pan Pro
 # ════════════════════════════════════════
-^https?:\/\/pcs\.baidu\.com header-add X-Extra-Info vip_accelerate=true, tag=百度网盘加速
+^https?:\/\/pcs\.baidu\.com header-replace-request X-Extra-Info vip_accelerate%3Dtrue, tag=百度网盘加速
 ^https?:\/\/api\.netdisk\.com script-request-body https://ws.wenn.in/main/Scripts/BdPan.js, tag=倍速播放解锁
-^https?:\/\/api\.netdisk\.com script-request-body https://ws.wenn.in/main/Scripts/BdPan.js, tag=超大文件上传解除
 
 # ════════════════════════════════════════
 # 🌟 浏览器 Safari WebView Pro
 # ════════════════════════════════════════
 ^https?:\/\/.*inapps\.com script-request-body https://ws.wenn.in/main/Scripts/BrowserClean.js, tag=WebView广告拦截
-^https?:\/\/render\.alipay.com script-request-body https://ws.wenn.in/main/Scripts/BrowserClean.js, tag=支付宝WebView净化
+^https?:\/\/render\.alipay\.com script-request-body https://ws.wenn.in/main/Scripts/BrowserClean.js, tag=支付宝WebView净化
 ^https?:\/\/count\.appannie\.com script-request-body https://ws.wenn.in/main/Scripts/BrowserClean.js, tag=统计追踪拦截
 
 # ════════════════════════════════════════
 # 🎵 网易云音乐 NetEase Music Pro
 # ════════════════════════════════════════
 ^https?:\/\/interface(\d)?\.music\.163\.com script-request-body https://ws.wenn.in/main/Mirror/netease.adblock.js, tag=框架净化
-^https?:\/\/interface(\d)?\.music\.163\.com script-request-body https://ws.wenn.in/main/Mirror/netease.adblock.js, tag=广告加载清除
 
 # ════════════════════════════════════════
 # 🗺️ 高德地图 Amap Pro
