@@ -1,5 +1,5 @@
 /*
-京东试用监控 - Quantumult X 优化版 v7.1 (修复版)
+京东试用监控 - Quantumult X 优化版 v8 (最终修复版)
 ==================== QX 配置 ====================
 
 [rewrite_local]
@@ -13,14 +13,13 @@ hostname = api.m.jd.com
 0,30 * * * * https://raw.githubusercontent.com/XXXGITHUB777/x/refs/heads/main/jdsy.js tag=JD试用监控, enabled=true
 
 ============================================================
-v7.1 修复内容:
-1. 跳过 OPTIONS 预检请求，防止空请求覆盖正确缓存
-2. 定时任务重放时自动移除 h5st 过期令牌
+v8 修复内容（对比 v6/v7）:
+1. 【核心修复】跳过 OPTIONS 预检请求，防止空请求覆盖正确缓存
+   → 这是 v6 失效的真正原因，不是 h5st
+2. 【回退错误】不再移除 h5st 参数！JD 服务器要求 h5st 必须存在
+   → v7 错误地删除了 h5st，导致请求被拒
 3. 缩小重写匹配范围，仅匹配试用接口
-4. 新增 script-response-body 抓包即解析响应
-5. 增加缓存数据有效性校验
-6. 【v7.1关键修复】response-body 模式下 $request.body 不可用，
-   先判断 hasResponse 再检查请求体，避免误报"抓包异常"
+4. 增加缓存数据有效性校验
 ============================================================
 */
 
@@ -62,7 +61,38 @@ if (isMitm && isTrialRequest()) {
     done();
 }
 
-function storeRequestData() {
+function runMitm() {
+    // V8核心修复: 跳过 OPTIONS 预检请求
+    // 这是 v6 失效的真正原因：OPTIONS 空请求覆盖了正确的 POST 缓存
+    if ($request.method === 'OPTIONS') {
+        console.log('跳过 OPTIONS 预检请求');
+        return done();
+    }
+
+    // 响应模式：处理响应数据
+    if (hasResponse) {
+        try {
+            if (!$response.body) return done();
+            const bodyObj = JSON.parse($response.body);
+            if (bodyObj.code === "0" || bodyObj.code === 0) {
+                notify('🛒 京东试用', '✅ 抓包刷新成功', '已更新请求令牌，当前数据有效。');
+                processData(bodyObj, true);
+            } else {
+                done();
+            }
+        } catch (e) {
+            done();
+        }
+        return;
+    }
+
+    // 请求模式：检查请求体
+    if ($request.method === 'POST' && !$request.body) {
+        notify('⚠️ 抓包异常', '未获取到请求体', '请确保 QX 重写规则使用的是 script-request-body！');
+        return done();
+    }
+
+    // 清理并存储请求头
     let headers = $request.headers || {};
     const cleanHeaders = {};
 
@@ -81,6 +111,7 @@ function storeRequestData() {
         }
     }
 
+    // V8关键：原样存储请求体，保留 h5st，不做任何修改
     const reqData = {
         url: $request.url,
         method: $request.method || 'POST',
@@ -90,46 +121,6 @@ function storeRequestData() {
 
     store.set(JSON.stringify(reqData), K_REQ);
     store.set('0', K_FAIL);
-}
-
-function runMitm() {
-    // V7修复1: 跳过 OPTIONS 预检请求，防止空请求覆盖正确的 POST 缓存
-    if ($request.method === 'OPTIONS') {
-        console.log('跳过 OPTIONS 预检请求');
-        return done();
-    }
-
-    // V7.1关键修复: response-body 模式下 $request.body 不可用
-    // 必须先判断 hasResponse，避免误报"抓包异常"
-    if (hasResponse) {
-        // 响应模式：处理响应数据，不检查请求体
-        try {
-            if (!$response.body) return done();
-            const bodyObj = JSON.parse($response.body);
-            if (bodyObj.code === "0" || bodyObj.code === 0) {
-                // 请求体可用时顺便存储（用于定时任务重放）
-                if ($request.body) {
-                    storeRequestData();
-                }
-                notify('🛒 京东试用', '✅ 抓包刷新成功', '已更新请求令牌，当前数据有效。');
-                processData(bodyObj, true);
-            } else {
-                done();
-            }
-        } catch (e) {
-            done();
-        }
-        return;
-    }
-
-    // 请求模式：必须有请求体
-    if ($request.method === 'POST' && !$request.body) {
-        notify('⚠️ 抓包异常', '未获取到请求体', '请确保 QX 重写规则使用的是 script-request-body！');
-        return done();
-    }
-
-    // 存储请求用于定时任务重放
-    storeRequestData();
 
     notify('🛒 京东试用', '✅ 抓包刷新成功', '已更新请求令牌，定时任务即可生效。');
     done();
@@ -152,31 +143,13 @@ function runCron() {
         return done();
     }
 
-    // V7修复2: 检测无效缓存（OPTIONS 请求或空 body）
+    // 检测无效缓存（OPTIONS 请求或空 body）
     if (reqObj.method === 'OPTIONS' || !reqObj.body) {
         notify('⚠️ 缓存数据异常', '存储的请求无效（可能是预检请求）', '👉 请点击桌面的快捷指令，重新抓包！');
         return done();
     }
 
-    // V7核心修复3: 移除 h5st 参数，防止过期令牌导致请求被拒
-    let modified = false;
-    if (reqObj.body && reqObj.body.includes('h5st=')) {
-        reqObj.body = reqObj.body.split('&')
-            .filter(param => {
-                let key = param.split('=')[0];
-                if (key === 'h5st') {
-                    modified = true;
-                    return false;
-                }
-                return true;
-            })
-            .join('&');
-
-        if (modified) {
-            console.log('已移除 h5st 过期令牌，使用无令牌模式重放请求');
-        }
-    }
-
+    // V8: 不再移除 h5st！原样重放请求，h5st 在有效期内可正常使用
     $task.fetch(reqObj).then(resp => {
         try {
             if (!resp || !resp.body) {
