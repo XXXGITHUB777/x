@@ -1,5 +1,5 @@
 /*
-京东试用监控 - Quantumult X 优化版 v7 (修复版)
+京东试用监控 - Quantumult X 优化版 v7.1 (修复版)
 ==================== QX 配置 ====================
 
 [rewrite_local]
@@ -13,12 +13,14 @@ hostname = api.m.jd.com
 0,30 * * * * https://raw.githubusercontent.com/XXXGITHUB777/x/refs/heads/main/jdsy.js tag=JD试用监控, enabled=true
 
 ============================================================
-v7 修复内容:
+v7.1 修复内容:
 1. 跳过 OPTIONS 预检请求，防止空请求覆盖正确缓存
 2. 定时任务重放时自动移除 h5st 过期令牌
 3. 缩小重写匹配范围，仅匹配试用接口
 4. 新增 script-response-body 抓包即解析响应
 5. 增加缓存数据有效性校验
+6. 【v7.1关键修复】response-body 模式下 $request.body 不可用，
+   先判断 hasResponse 再检查请求体，避免误报"抓包异常"
 ============================================================
 */
 
@@ -60,18 +62,7 @@ if (isMitm && isTrialRequest()) {
     done();
 }
 
-function runMitm() {
-    // V7修复1: 跳过 OPTIONS 预检请求，防止空请求覆盖正确的 POST 缓存
-    if ($request.method === 'OPTIONS') {
-        console.log('跳过 OPTIONS 预检请求');
-        return done();
-    }
-
-    if ($request.method === 'POST' && !$request.body) {
-        notify('⚠️ 抓包异常', '未获取到请求体', '请确保 QX 重写规则使用的是 script-request-body！');
-        return done();
-    }
-
+function storeRequestData() {
     let headers = $request.headers || {};
     const cleanHeaders = {};
 
@@ -99,12 +90,27 @@ function runMitm() {
 
     store.set(JSON.stringify(reqData), K_REQ);
     store.set('0', K_FAIL);
+}
 
+function runMitm() {
+    // V7修复1: 跳过 OPTIONS 预检请求，防止空请求覆盖正确的 POST 缓存
+    if ($request.method === 'OPTIONS') {
+        console.log('跳过 OPTIONS 预检请求');
+        return done();
+    }
+
+    // V7.1关键修复: response-body 模式下 $request.body 不可用
+    // 必须先判断 hasResponse，避免误报"抓包异常"
     if (hasResponse) {
+        // 响应模式：处理响应数据，不检查请求体
         try {
             if (!$response.body) return done();
             const bodyObj = JSON.parse($response.body);
             if (bodyObj.code === "0" || bodyObj.code === 0) {
+                // 请求体可用时顺便存储（用于定时任务重放）
+                if ($request.body) {
+                    storeRequestData();
+                }
                 notify('🛒 京东试用', '✅ 抓包刷新成功', '已更新请求令牌，当前数据有效。');
                 processData(bodyObj, true);
             } else {
@@ -113,10 +119,20 @@ function runMitm() {
         } catch (e) {
             done();
         }
-    } else {
-        notify('🛒 京东试用', '✅ 抓包刷新成功', '已更新请求令牌，定时任务即可生效。');
-        done();
+        return;
     }
+
+    // 请求模式：必须有请求体
+    if ($request.method === 'POST' && !$request.body) {
+        notify('⚠️ 抓包异常', '未获取到请求体', '请确保 QX 重写规则使用的是 script-request-body！');
+        return done();
+    }
+
+    // 存储请求用于定时任务重放
+    storeRequestData();
+
+    notify('🛒 京东试用', '✅ 抓包刷新成功', '已更新请求令牌，定时任务即可生效。');
+    done();
 }
 
 function runCron() {
