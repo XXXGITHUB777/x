@@ -1,10 +1,9 @@
 /*
-京东试用监控 - Quantumult X 优化版 v8 (最终修复版)
+京东试用监控 - Quantumult X v9 (诊断版)
 ==================== QX 配置 ====================
 
 [rewrite_local]
 ^https?:\/\/api\.m\.jd\.com\/client\.action\?functionId=getCommentOfficerTrialHome url script-request-body https://raw.githubusercontent.com/XXXGITHUB777/x/refs/heads/main/jdsy.js
-^https?:\/\/api\.m\.jd\.com\/client\.action\?functionId=getCommentOfficerTrialHome url script-response-body https://raw.githubusercontent.com/XXXGITHUB777/x/refs/heads/main/jdsy.js
 
 [mitm]
 hostname = api.m.jd.com
@@ -13,23 +12,24 @@ hostname = api.m.jd.com
 0,30 * * * * https://raw.githubusercontent.com/XXXGITHUB777/x/refs/heads/main/jdsy.js tag=JD试用监控, enabled=true
 
 ============================================================
-v8 修复内容（对比 v6/v7）:
-1. 【核心修复】跳过 OPTIONS 预检请求，防止空请求覆盖正确缓存
-   → 这是 v6 失效的真正原因，不是 h5st
-2. 【回退错误】不再移除 h5st 参数！JD 服务器要求 h5st 必须存在
-   → v7 错误地删除了 h5st，导致请求被拒
-3. 缩小重写匹配范围，仅匹配试用接口
-4. 增加缓存数据有效性校验
+v9 变更:
+1. 只用 script-request-body（去掉 response-body 避免冲突）
+2. 跳过 OPTIONS 预检请求
+3. 保留 h5st 原样不动
+4. 通知中显示版本号，方便确认脚本已更新
+5. 失败时显示完整响应内容（前200字），用于诊断
+6. 记录抓包时间，失败时显示请求年龄
 ============================================================
 */
 
-const K_REQ = 'jdsy_req_v6';
-const K_SNAP = 'jdsy_snap_v6';
-const K_FAIL = 'jdsy_fail_v6';
+const VERSION = 'v9';
+const K_REQ = 'jdsy_req_v9';
+const K_SNAP = 'jdsy_snap_v9';
+const K_FAIL = 'jdsy_fail_v9';
+const K_TIME = 'jdsy_time_v9';
 
 const isQX = typeof $task !== 'undefined';
 const isMitm = typeof $request !== 'undefined';
-const hasResponse = typeof $response !== 'undefined';
 
 const store = {
     get: (key) => isQX ? $prefs.valueForKey(key) : null,
@@ -62,43 +62,32 @@ if (isMitm && isTrialRequest()) {
 }
 
 function runMitm() {
-    // V8核心修复: 跳过 OPTIONS 预检请求
-    // 这是 v6 失效的真正原因：OPTIONS 空请求覆盖了正确的 POST 缓存
+    // 跳过 OPTIONS 预检请求
     if ($request.method === 'OPTIONS') {
-        console.log('跳过 OPTIONS 预检请求');
+        console.log(`[${VERSION}] 跳过 OPTIONS 预检请求`);
         return done();
     }
 
-    // 响应模式：处理响应数据
-    if (hasResponse) {
-        try {
-            if (!$response.body) return done();
-            const bodyObj = JSON.parse($response.body);
-            if (bodyObj.code === "0" || bodyObj.code === 0) {
-                notify('🛒 京东试用', '✅ 抓包刷新成功', '已更新请求令牌，当前数据有效。');
-                processData(bodyObj, true);
-            } else {
-                done();
-            }
-        } catch (e) {
-            done();
-        }
-        return;
-    }
-
-    // 请求模式：检查请求体
     if ($request.method === 'POST' && !$request.body) {
-        notify('⚠️ 抓包异常', '未获取到请求体', '请确保 QX 重写规则使用的是 script-request-body！');
+        notify('⚠️ 抓包异常', `[${VERSION}] 未获取到请求体`, '请确保 QX 重写规则使用的是 script-request-body！');
         return done();
     }
 
-    // 清理并存储请求头
+    // 清理请求头
     let headers = $request.headers || {};
     const cleanHeaders = {};
 
     for (let key in headers) {
         let lowerKey = key.toLowerCase();
-        if (lowerKey === 'content-length' || lowerKey === 'accept-encoding') continue;
+        // 过滤掉会引起问题的头
+        if (lowerKey === 'content-length' || 
+            lowerKey === 'accept-encoding' ||
+            lowerKey === 'host' ||
+            lowerKey === 'connection' ||
+            lowerKey === 'priority' ||
+            lowerKey === 'sec-fetch-site' ||
+            lowerKey === 'sec-fetch-mode' ||
+            lowerKey === 'sec-fetch-dest') continue;
 
         if (lowerKey === 'content-type') {
             cleanHeaders['Content-Type'] = headers[key];
@@ -111,7 +100,7 @@ function runMitm() {
         }
     }
 
-    // V8关键：原样存储请求体，保留 h5st，不做任何修改
+    // 原样存储请求（保留 h5st 不做任何修改）
     const reqData = {
         url: $request.url,
         method: $request.method || 'POST',
@@ -121,8 +110,11 @@ function runMitm() {
 
     store.set(JSON.stringify(reqData), K_REQ);
     store.set('0', K_FAIL);
+    // 记录抓包时间
+    store.set(String(Date.now()), K_TIME);
 
-    notify('🛒 京东试用', '✅ 抓包刷新成功', '已更新请求令牌，定时任务即可生效。');
+    console.log(`[${VERSION}] 抓包成功，已存储请求`);
+    notify('🛒 京东试用', `✅ 抓包刷新成功 [${VERSION}]`, '已更新请求令牌，定时任务即可生效。');
     done();
 }
 
@@ -130,8 +122,7 @@ function runCron() {
     const reqStr = store.get(K_REQ);
 
     if (!reqStr) {
-        console.log('缺少请求缓存，请先抓包');
-        notify('⚠️ 试用监控尚未初始化', '找不到抓包凭证', '👉 请点击桌面的快捷指令，跳转京东抓取一次！');
+        notify('⚠️ 试用监控尚未初始化', `[${VERSION}] 找不到抓包凭证`, '👉 请点击桌面的快捷指令，跳转京东抓取一次！');
         return done();
     }
 
@@ -139,36 +130,49 @@ function runCron() {
     try {
         reqObj = JSON.parse(reqStr);
     } catch (e) {
-        notify('⚠️ 缓存数据损坏', '无法解析请求数据', '👉 请点击桌面的快捷指令，重新抓包！');
+        notify('⚠️ 缓存数据损坏', `[${VERSION}] 无法解析请求数据`, '👉 请重新抓包！');
         return done();
     }
 
-    // 检测无效缓存（OPTIONS 请求或空 body）
+    // 检测无效缓存
     if (reqObj.method === 'OPTIONS' || !reqObj.body) {
-        notify('⚠️ 缓存数据异常', '存储的请求无效（可能是预检请求）', '👉 请点击桌面的快捷指令，重新抓包！');
+        notify('⚠️ 缓存数据异常', `[${VERSION}] 存储的请求无效`, '👉 请重新抓包！');
         return done();
     }
 
-    // V8: 不再移除 h5st！原样重放请求，h5st 在有效期内可正常使用
+    // 计算请求年龄
+    const captureTime = parseInt(store.get(K_TIME) || '0', 10);
+    const ageMin = captureTime > 0 ? Math.floor((Date.now() - captureTime) / 60000) : -1;
+    const ageStr = ageMin >= 0 ? `${ageMin}分钟前` : '未知';
+
+    console.log(`[${VERSION}] 开始执行定时任务，请求年龄: ${ageStr}`);
+
+    // 原样重放请求，保留 h5st
     $task.fetch(reqObj).then(resp => {
         try {
             if (!resp || !resp.body) {
-                return handleFail('京东服务器返回了空数据');
+                return handleFail(`京东服务器返回了空数据\n请求年龄: ${ageStr}`);
             }
 
-            const bodyObj = JSON.parse(resp.body);
+            const bodyStr = resp.body;
+            const bodyObj = JSON.parse(bodyStr);
+
             if (bodyObj && (bodyObj.code === "0" || bodyObj.code === 0) && bodyObj.result) {
                 store.set('0', K_FAIL);
                 processData(bodyObj, false);
             } else {
-                let errorMsg = bodyObj.echo || bodyObj.message || bodyObj.msg || '京东接口未返回预期状态';
-                handleFail(errorMsg);
+                // 详细记录失败原因，包含完整响应内容
+                let errorMsg = bodyObj.echo || bodyObj.message || bodyObj.msg || '无错误消息';
+                let respPreview = bodyStr.substring(0, 200);
+                handleFail(`code=${bodyObj.code}, msg=${errorMsg}\n请求年龄: ${ageStr}\n响应内容: ${respPreview}`);
             }
         } catch (e) {
-            handleFail('凭证已失效 (服务器返回了非 JSON 的重定向或拦截页面)');
+            // JSON 解析失败，记录原始响应
+            let rawPreview = resp.body ? resp.body.substring(0, 200) : '(空)';
+            handleFail(`JSON解析失败\n请求年龄: ${ageStr}\n原始响应: ${rawPreview}`);
         }
     }, err => {
-        handleFail(`网络请求超时或被拒绝`);
+        handleFail(`网络请求失败: ${err || '超时或被拒绝'}\n请求年龄: ${ageStr}`);
     });
 }
 
@@ -181,7 +185,7 @@ function processData(data, isFromMitm) {
 
     if (availCount === 0) {
         store.set(JSON.stringify({ total: 0, items: {}, ts: Date.now() }), K_SNAP);
-        console.log('当前无可申请商品，静默退出。');
+        console.log(`[${VERSION}] 当前无可申请商品，静默退出。`);
         return done();
     }
 
@@ -215,7 +219,7 @@ function processData(data, isFromMitm) {
     const moreText = msgs.length > 10 ? `\n...等共 ${availCount} 件` : '';
 
     if (isFromMitm) {
-        console.log(`初始化记录了 ${availCount} 件商品。`);
+        console.log(`[${VERSION}] 初始化记录了 ${availCount} 件商品。`);
     } else {
         let title = `🛒 京东试用快报 (${availCount}件)`;
         let subtitle = availCount > oldSnap.total ? `▶ 发现新增！总数 ${oldSnap.total} → ${availCount}` : `当前可申请清单`;
@@ -230,6 +234,6 @@ function handleFail(reason) {
     let failCount = parseInt(store.get(K_FAIL) || '0', 10) + 1;
     store.set(String(failCount), K_FAIL);
 
-    notify('⚠️ 京东试用凭证已失效', `已连续失效 ${failCount} 次`, `原因: ${reason}\n👉 请立即点击桌面的快捷指令刷新！`);
+    notify(`⚠️ 京东试用失效 [${VERSION}]`, `已连续失效 ${failCount} 次`, `${reason}\n👉 请重新抓包！`);
     done();
 }
