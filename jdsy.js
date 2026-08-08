@@ -1,9 +1,10 @@
 /*
-京东试用监控 - Quantumult X 优化版 v6 (终极稳定版)
+京东试用监控 - Quantumult X 优化版 v7 (修复版)
 ==================== QX 配置 ====================
 
 [rewrite_local]
-^https?:\/\/api\.m\.jd\.com\/client\.action url script-request-body https://raw.githubusercontent.com/XXXGITHUB777/x/refs/heads/main/jdsy.js
+^https?:\/\/api\.m\.jd\.com\/client\.action\?functionId=getCommentOfficerTrialHome url script-request-body https://raw.githubusercontent.com/XXXGITHUB777/x/refs/heads/main/jdsy.js
+^https?:\/\/api\.m\.jd\.com\/client\.action\?functionId=getCommentOfficerTrialHome url script-response-body https://raw.githubusercontent.com/XXXGITHUB777/x/refs/heads/main/jdsy.js
 
 [mitm]
 hostname = api.m.jd.com
@@ -11,6 +12,13 @@ hostname = api.m.jd.com
 [task_local]
 0,30 * * * * https://raw.githubusercontent.com/XXXGITHUB777/x/refs/heads/main/jdsy.js tag=JD试用监控, enabled=true
 
+============================================================
+v7 修复内容:
+1. 跳过 OPTIONS 预检请求，防止空请求覆盖正确缓存
+2. 定时任务重放时自动移除 h5st 过期令牌
+3. 缩小重写匹配范围，仅匹配试用接口
+4. 新增 script-response-body 抓包即解析响应
+5. 增加缓存数据有效性校验
 ============================================================
 */
 
@@ -53,6 +61,12 @@ if (isMitm && isTrialRequest()) {
 }
 
 function runMitm() {
+    // V7修复1: 跳过 OPTIONS 预检请求，防止空请求覆盖正确的 POST 缓存
+    if ($request.method === 'OPTIONS') {
+        console.log('跳过 OPTIONS 预检请求');
+        return done();
+    }
+
     if ($request.method === 'POST' && !$request.body) {
         notify('⚠️ 抓包异常', '未获取到请求体', '请确保 QX 重写规则使用的是 script-request-body！');
         return done();
@@ -60,7 +74,7 @@ function runMitm() {
 
     let headers = $request.headers || {};
     const cleanHeaders = {};
-    
+
     for (let key in headers) {
         let lowerKey = key.toLowerCase();
         if (lowerKey === 'content-length' || lowerKey === 'accept-encoding') continue;
@@ -107,7 +121,7 @@ function runMitm() {
 
 function runCron() {
     const reqStr = store.get(K_REQ);
-    
+
     if (!reqStr) {
         console.log('缺少请求缓存，请先抓包');
         notify('⚠️ 试用监控尚未初始化', '找不到抓包凭证', '👉 请点击桌面的快捷指令，跳转京东抓取一次！');
@@ -122,23 +136,46 @@ function runCron() {
         return done();
     }
 
+    // V7修复2: 检测无效缓存（OPTIONS 请求或空 body）
+    if (reqObj.method === 'OPTIONS' || !reqObj.body) {
+        notify('⚠️ 缓存数据异常', '存储的请求无效（可能是预检请求）', '👉 请点击桌面的快捷指令，重新抓包！');
+        return done();
+    }
+
+    // V7核心修复3: 移除 h5st 参数，防止过期令牌导致请求被拒
+    let modified = false;
+    if (reqObj.body && reqObj.body.includes('h5st=')) {
+        reqObj.body = reqObj.body.split('&')
+            .filter(param => {
+                let key = param.split('=')[0];
+                if (key === 'h5st') {
+                    modified = true;
+                    return false;
+                }
+                return true;
+            })
+            .join('&');
+
+        if (modified) {
+            console.log('已移除 h5st 过期令牌，使用无令牌模式重放请求');
+        }
+    }
+
     $task.fetch(reqObj).then(resp => {
         try {
-            // V6核心修复：严禁对可能为空的 body 进行任何链式调用，防止报错吞噬 done()
             if (!resp || !resp.body) {
                 return handleFail('京东服务器返回了空数据');
             }
-            
+
             const bodyObj = JSON.parse(resp.body);
             if (bodyObj && (bodyObj.code === "0" || bodyObj.code === 0) && bodyObj.result) {
                 store.set('0', K_FAIL);
                 processData(bodyObj, false);
             } else {
-                let errorMsg = bodyObj.echo || bodyObj.message || '京东接口未返回预期状态';
+                let errorMsg = bodyObj.echo || bodyObj.message || bodyObj.msg || '京东接口未返回预期状态';
                 handleFail(errorMsg);
             }
         } catch (e) {
-            // 安全阻断，直接抛给 handleFail
             handleFail('凭证已失效 (服务器返回了非 JSON 的重定向或拦截页面)');
         }
     }, err => {
@@ -148,7 +185,7 @@ function runCron() {
 
 function processData(data, isFromMitm) {
     if (!data || !data.result) return done();
-    
+
     const acts = data.result.trialActivities || [];
     const available = acts.filter(a => a.claimableNum > 0);
     const availCount = available.length;
@@ -170,9 +207,9 @@ function processData(data, isFromMitm) {
 
     for (let act of available) {
         const id = `${act.activityId}_${act.skuId}`;
-        const name = act.skuName || `未知商品(${act.skuId})`;
+        const name = act.skuName || act.skuTitle || `未知商品(${act.skuId})`;
         const currentNum = parseInt(act.claimableNum, 10);
-        
+
         newItems[id] = currentNum;
         const oldNum = oldSnap.items[id];
 
